@@ -14,10 +14,14 @@ import {
   Download,
   Filter,
   FileText,
-  RefreshCw
+  RefreshCw,
+  BarChart3,
+  Network
 } from 'lucide-react';
 import { AnalysisReport, WorkflowFile } from '../types/workflow';
 import { generateMarkdownReport, generatePDFReport } from '../utils/workflowAnalyzer';
+import AnalysisCharts from './charts/AnalysisCharts';
+import WorkflowDependencyGraph from './charts/WorkflowDependencyGraph';
 
 interface AnalysisResultsProps {
   reports: AnalysisReport[];
@@ -45,6 +49,7 @@ export default function AnalysisResults({ reports, workflowFiles, onNewAnalysis 
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
   const [selectedSeverities, setSelectedSeverities] = useState<Set<string>>(new Set());
   const [expandedIssues, setExpandedIssues] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<'list' | 'charts' | 'network'>('list');
 
   const currentReport = reports.find(r => r.fileId === selectedFile);
 
@@ -204,6 +209,56 @@ export default function AnalysisResults({ reports, workflowFiles, onNewAnalysis 
       )}
 
       {currentReport && (
+        <div className="space-y-6">
+          {/* View Toggle Tabs */}
+          <div className="bg-white border border-gray-200 rounded-lg p-1">
+            <div className="flex space-x-1">
+              <button
+                onClick={() => setActiveTab('list')}
+                className={`flex-1 flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === 'list'
+                    ? 'bg-blue-500 text-white shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                Issue List
+              </button>
+              <button
+                onClick={() => setActiveTab('charts')}
+                className={`flex-1 flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === 'charts'
+                    ? 'bg-blue-500 text-white shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Analytics
+              </button>
+              <button
+                onClick={() => setActiveTab('network')}
+                className={`flex-1 flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === 'network'
+                    ? 'bg-blue-500 text-white shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                <Network className="w-4 h-4 mr-2" />
+                Network View
+              </button>
+            </div>
+          </div>
+
+          {/* Content based on active tab */}
+          {activeTab === 'charts' && (
+            <AnalysisCharts reports={reports} />
+          )}
+
+          {activeTab === 'network' && (
+            <WorkflowDependencyGraph reports={reports} />
+          )}
+
+          {activeTab === 'list' && (
         <div className="grid lg:grid-cols-4 gap-6">
           {/* Sidebar */}
           <div className="lg:col-span-1 space-y-6">
@@ -442,6 +497,8 @@ export default function AnalysisResults({ reports, workflowFiles, onNewAnalysis 
               </div>
             )}
           </div>
+        </div>
+          )}
         </div>
       )}
     </div>
