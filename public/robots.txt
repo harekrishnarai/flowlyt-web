@@ -1,0 +1,5 @@
+User-Agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://flowlyt.harekrishnarai.me/sitemap.xml

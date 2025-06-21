@@ -11,7 +11,7 @@ export default defineConfig({
   build: {
     // Optimize build for production
     target: 'es2015',
-    minify: 'terser',
+    minify: 'esbuild', // Use esbuild instead of terser for better compatibility
     rollupOptions: {
       output: {
         manualChunks: {
