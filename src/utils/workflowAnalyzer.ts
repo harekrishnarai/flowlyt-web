@@ -143,6 +143,14 @@ export function generateMarkdownReport(reports: AnalysisReport[]): string {
         if (result.suggestion) {
           markdown += `**Suggestion**: ${result.suggestion}\n`;
         }
+
+        if (result.codeSnippet) {
+          markdown += `**Code Context**:\n`;
+          markdown += `\`\`\`yaml\n`;
+          markdown += `${result.codeSnippet.content}\n`;
+          markdown += `\`\`\`\n`;
+          markdown += `_Lines ${result.codeSnippet.startLine}-${result.codeSnippet.endLine}_\n`;
+        }
         
         if (result.links && result.links.length > 0) {
           markdown += `**References**:\n`;

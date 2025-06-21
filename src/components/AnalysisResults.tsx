@@ -382,6 +382,38 @@ export default function AnalysisResults({ reports, workflowFiles, onNewAnalysis 
                               <p className="text-sm text-gray-700">{result.suggestion}</p>
                             </div>
                           )}
+
+                          {result.codeSnippet && (
+                            <div>
+                              <h4 className="text-sm font-medium text-gray-900 mb-2">Code Context</h4>
+                              <div className="relative bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
+                                <div className="absolute top-2 right-2 text-xs text-gray-500 bg-white px-2 py-1 rounded border">
+                                  Lines {result.codeSnippet.startLine}-{result.codeSnippet.endLine}
+                                </div>
+                                <pre className="p-4 text-sm overflow-x-auto">
+                                  <code className="language-yaml">
+                                    {result.codeSnippet.content.split('\n').map((line, index) => {
+                                      const lineNumber = result.codeSnippet!.startLine + index;
+                                      const isHighlighted = result.codeSnippet!.highlightLine && 
+                                        lineNumber === result.codeSnippet!.startLine + result.codeSnippet!.highlightLine - 1;
+                                      
+                                      return (
+                                        <div 
+                                          key={index} 
+                                          className={`flex ${isHighlighted ? 'bg-yellow-100 -mx-4 px-4' : ''}`}
+                                        >
+                                          <span className="text-gray-400 mr-4 select-none w-8 text-right flex-shrink-0">
+                                            {lineNumber}
+                                          </span>
+                                          <span className="flex-1">{line}</span>
+                                        </div>
+                                      );
+                                    })}
+                                  </code>
+                                </pre>
+                              </div>
+                            </div>
+                          )}
                           
                           {result.links && result.links.length > 0 && (
                             <div>

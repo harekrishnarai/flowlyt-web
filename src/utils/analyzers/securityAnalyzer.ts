@@ -1,5 +1,5 @@
 import { WorkflowData, AnalysisResult } from '../../types/workflow';
-import { findLineNumber, findStepLineNumber } from '../yamlParser';
+import { findLineNumber, findStepLineNumber, extractCodeSnippet, extractStepSnippet } from '../yamlParser';
 import { GitHubAnalysisContext } from '../workflowAnalyzer';
 
 // Helper function to create GitHub permalink for specific line
@@ -53,6 +53,7 @@ export function analyzeSecurityIssues(
       
       const lineNumber = findLineNumber(content, match[0]);
       const githubLink = createGitHubLink(githubContext, lineNumber);
+      const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
       
       results.push({
         id: `hardcoded-${name}-${Date.now()}-${Math.random()}`,
@@ -64,7 +65,8 @@ export function analyzeSecurityIssues(
         location: { line: lineNumber },
         suggestion: `Store sensitive values in GitHub Secrets and reference them using \${{ secrets.SECRET_NAME }}`,
         links: ['https://docs.github.com/en/actions/security-guides/encrypted-secrets'],
-        githubUrl: githubLink
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
       });
     }
   });
@@ -89,6 +91,7 @@ export function analyzeSecurityIssues(
     for (const match of matches) {
       const lineNumber = findLineNumber(content, match[0]);
       const githubLink = createGitHubLink(githubContext, lineNumber);
+      const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
       
       results.push({
         id: `sensitive-log-${Date.now()}-${Math.random()}`,
@@ -100,7 +103,8 @@ export function analyzeSecurityIssues(
         location: { line: lineNumber },
         suggestion: 'Avoid printing sensitive information to logs. Use secure methods for debugging.',
         links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
-        githubUrl: githubLink
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
       });
     }
   });
@@ -125,6 +129,7 @@ export function analyzeSecurityIssues(
     for (const match of matches) {
       const lineNumber = findLineNumber(content, match[0]);
       const githubLink = createGitHubLink(githubContext, lineNumber);
+      const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
       
       results.push({
         id: `suspicious-network-${Date.now()}-${Math.random()}`,
@@ -136,7 +141,8 @@ export function analyzeSecurityIssues(
         location: { line: lineNumber },
         suggestion: 'Review this network activity carefully. Ensure it\'s legitimate and not exfiltrating sensitive data.',
         links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
-        githubUrl: githubLink
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
       });
     }
   });
@@ -156,6 +162,7 @@ export function analyzeSecurityIssues(
     for (const match of matches) {
       const lineNumber = findLineNumber(content, match[0]);
       const githubLink = createGitHubLink(githubContext, lineNumber);
+      const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
       
       results.push({
         id: `env-exfiltration-${Date.now()}-${Math.random()}`,
@@ -167,7 +174,8 @@ export function analyzeSecurityIssues(
         location: { line: lineNumber },
         suggestion: 'This pattern suggests environment variable exfiltration. Remove or secure this command.',
         links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
-        githubUrl: githubLink
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
       });
     }
   });
@@ -178,6 +186,7 @@ export function analyzeSecurityIssues(
     if (permissions === 'write-all' || (typeof permissions === 'object' && permissions.contents === 'write')) {
       const lineNumber = findLineNumber(content, 'permissions:');
       const githubLink = createGitHubLink(githubContext, lineNumber);
+      const codeSnippet = extractCodeSnippet(content, lineNumber, 3);
       
       results.push({
         id: `permissions-${Date.now()}`,
@@ -189,7 +198,8 @@ export function analyzeSecurityIssues(
         location: { line: lineNumber },
         suggestion: 'Use minimal required permissions. Consider using job-level permissions instead.',
         links: ['https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#permissions'],
-        githubUrl: githubLink
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
       });
     }
   }
@@ -206,6 +216,7 @@ export function analyzeSecurityIssues(
       
       if (step.uses) {
         const githubLink = createGitHubLink(githubContext, stepLineNumber);
+        const codeSnippet = extractStepSnippet(content, jobId, stepIndex);
         
         // Check for unpinned actions (no version at all)
         if (!step.uses.includes('@')) {
@@ -219,7 +230,8 @@ export function analyzeSecurityIssues(
             location: { job: jobId, step: stepIndex, line: stepLineNumber },
             suggestion: 'Pin actions to specific versions or SHA hashes for better security',
             links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
-            githubUrl: githubLink
+            githubUrl: githubLink,
+            codeSnippet: codeSnippet || undefined
           });
         } else {
           // Check for version pinning vs SHA pinning
@@ -245,7 +257,8 @@ export function analyzeSecurityIssues(
                 location: { job: jobId, step: stepIndex, line: stepLineNumber },
                 suggestion: 'For maximum security, pin third-party actions to specific SHA commits instead of tags or branches',
                 links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-third-party-actions'],
-                githubUrl: githubLink
+                githubUrl: githubLink,
+                codeSnippet: codeSnippet || undefined
               });
             } else if (version.startsWith('v') && version.includes('.')) {
               // Official actions using semantic versioning - this is acceptable but inform about SHA option
@@ -259,7 +272,8 @@ export function analyzeSecurityIssues(
                 location: { job: jobId, step: stepIndex, line: stepLineNumber },
                 suggestion: 'While semantic versioning is acceptable for official actions, SHA pinning provides the highest security guarantee',
                 links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-third-party-actions'],
-                githubUrl: githubLink
+                githubUrl: githubLink,
+                codeSnippet: codeSnippet || undefined
               });
             }
           }
@@ -285,7 +299,8 @@ export function analyzeSecurityIssues(
             location: { job: jobId, step: stepIndex, line: stepLineNumber },
             suggestion: 'Review the action source code, check its reputation, and ensure it\'s pinned to a specific SHA for security',
             links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
-            githubUrl: githubLink
+            githubUrl: githubLink,
+            codeSnippet: codeSnippet || undefined
           });
         }
       }
@@ -312,6 +327,7 @@ export function analyzeSecurityIssues(
     for (const match of matches) {
       const lineNumber = findLineNumber(content, match[0]);
       const githubLink = createGitHubLink(githubContext, lineNumber);
+      const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
       
       results.push({
         id: `insecure-script-${Date.now()}-${Math.random()}`,
@@ -323,7 +339,8 @@ export function analyzeSecurityIssues(
         location: { line: lineNumber },
         suggestion: 'Avoid piping untrusted content to shell interpreters. Validate and sanitize all inputs.',
         links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
-        githubUrl: githubLink
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
       });
     }
   });
@@ -343,6 +360,7 @@ export function analyzeSecurityIssues(
     for (const match of matches) {
       const lineNumber = findLineNumber(content, match[0]);
       const githubLink = createGitHubLink(githubContext, lineNumber);
+      const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
       
       results.push({
         id: `supply-chain-risk-${Date.now()}-${Math.random()}`,
@@ -354,7 +372,8 @@ export function analyzeSecurityIssues(
         location: { line: lineNumber },
         suggestion: 'Review the security of packages/dependencies being installed. Use lock files and verify checksums when possible.',
         links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
-        githubUrl: githubLink
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
       });
     }
   });

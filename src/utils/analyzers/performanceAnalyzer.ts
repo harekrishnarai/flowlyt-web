@@ -1,5 +1,5 @@
 import { WorkflowData, AnalysisResult } from '../../types/workflow';
-import { findJobLineNumber, findStepLineNumber, findLineNumber } from '../yamlParser';
+import { findJobLineNumber, findLineNumber, extractJobSnippet } from '../yamlParser';
 import { GitHubAnalysisContext } from '../workflowAnalyzer';
 
 // Helper function to create GitHub permalink for specific line
@@ -58,6 +58,7 @@ export function analyzePerformanceIssues(
     // Only recommend caching if there's a setup step AND an install step
     if ((hasNodeSetup || hasPythonSetup || hasJavaSetup) && hasInstallStep && !hasCaching) {
       const githubLink = createGitHubLink(githubContext, jobLineNumber);
+      const codeSnippet = extractJobSnippet(content, jobId);
       const setupType = hasNodeSetup ? 'Node.js' : hasPythonSetup ? 'Python' : 'Java';
       
       results.push({
@@ -70,7 +71,8 @@ export function analyzePerformanceIssues(
         location: { job: jobId, line: jobLineNumber },
         suggestion: 'Add actions/cache to cache dependencies and improve build times',
         links: ['https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows'],
-        githubUrl: githubLink
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
       });
     }
 

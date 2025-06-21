@@ -1,5 +1,5 @@
 import { WorkflowData, AnalysisResult } from '../../types/workflow';
-import { findLineNumber, findJobLineNumber, findStepLineNumber } from '../yamlParser';
+import { findLineNumber, findJobLineNumber, findStepLineNumber, extractJobSnippet, extractStepSnippet } from '../yamlParser';
 import { GitHubAnalysisContext } from '../workflowAnalyzer';
 
 // Helper function to create GitHub permalink for specific line
@@ -59,6 +59,7 @@ export function analyzeBestPractices(
     
     if (shouldHaveJobName && (!job.name || job.name.trim() === '')) {
       const githubLink = createGitHubLink(githubContext, jobLineNumber);
+      const codeSnippet = extractJobSnippet(content, jobId);
       
       results.push({
         id: `missing-job-name-${jobId}`,
@@ -69,7 +70,8 @@ export function analyzeBestPractices(
         file: fileName,
         location: { job: jobId, line: jobLineNumber },
         suggestion: 'Add a "name" field to make the job purpose clear in the UI',
-        githubUrl: githubLink
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
       });
     }
     
@@ -94,6 +96,7 @@ export function analyzeBestPractices(
         
         if (!step.name && (step.uses || step.run) && (isComplexStep || job.steps.length > 3)) {
           const githubLink = createGitHubLink(githubContext, stepLineNumber);
+          const codeSnippet = extractStepSnippet(content, jobId, stepIndex);
           
           // Only add if we found a valid line number to avoid false positives
           if (stepLineNumber > 0) {
@@ -106,7 +109,8 @@ export function analyzeBestPractices(
               file: fileName,
               location: { job: jobId, step: stepIndex, line: stepLineNumber },
               suggestion: 'Add descriptive names to steps for better readability',
-              githubUrl: githubLink
+              githubUrl: githubLink,
+              codeSnippet: codeSnippet || undefined
             });
           }
         }

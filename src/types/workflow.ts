@@ -57,6 +57,12 @@ export interface AnalysisResult {
   suggestion?: string;
   links?: string[];
   githubUrl?: string; // Direct GitHub permalink to the line
+  codeSnippet?: {
+    content: string;
+    startLine: number;
+    endLine: number;
+    highlightLine?: number; // Line to highlight within the snippet
+  };
 }
 
 export interface AnalysisReport {
