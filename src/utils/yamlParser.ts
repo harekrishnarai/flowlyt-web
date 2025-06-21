@@ -58,28 +58,50 @@ export function findJobLineNumber(content: string, jobId: string): number {
 export function findStepLineNumber(content: string, jobId: string, stepIndex: number): number {
   const lines = content.split('\n');
   let jobFound = false;
+  let stepsFound = false;
   let stepCount = 0;
+  let indentLevel = -1;
   
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
+    const line = lines[i];
+    const trimmedLine = line.trim();
     
-    if (line.startsWith(`${jobId}:`)) {
+    // Find the job
+    if (trimmedLine.startsWith(`${jobId}:`)) {
       jobFound = true;
+      indentLevel = line.search(/\S/); // Get indentation level
       continue;
     }
     
     if (jobFound) {
-      // Check if we've moved to another job
-      if (line.match(/^[a-zA-Z_][a-zA-Z0-9_-]*:$/) && !line.includes('steps:')) {
+      const currentIndent = line.search(/\S/);
+      
+      // If we're back to the same or lesser indentation level, we've left this job
+      if (currentIndent >= 0 && currentIndent <= indentLevel && trimmedLine.match(/^[a-zA-Z_][a-zA-Z0-9_-]*:/)) {
         break;
       }
       
-      // Look for step indicators
-      if (line.startsWith('- name:') || line.startsWith('- uses:') || line.startsWith('- run:')) {
-        if (stepCount === stepIndex) {
-          return i + 1;
+      // Look for steps section
+      if (trimmedLine === 'steps:') {
+        stepsFound = true;
+        continue;
+      }
+      
+      if (stepsFound) {
+        // Look for step indicators (must start with dash and be properly indented)
+        if (trimmedLine.startsWith('-') && (trimmedLine.includes('name:') || trimmedLine.includes('uses:') || trimmedLine.includes('run:'))) {
+          if (stepCount === stepIndex) {
+            return i + 1;
+          }
+          stepCount++;
         }
-        stepCount++;
+        // Also check for multi-line steps where the dash is on its own line
+        else if (trimmedLine === '-') {
+          if (stepCount === stepIndex) {
+            return i + 1;
+          }
+          stepCount++;
+        }
       }
     }
   }

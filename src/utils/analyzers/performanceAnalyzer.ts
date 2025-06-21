@@ -30,24 +30,45 @@ export function analyzePerformanceIssues(
     }
     
     const hasNodeSetup = job.steps.some(step => 
-      step.uses?.includes('actions/setup-node') || step.uses?.includes('setup-node')
+      step.uses?.includes('actions/setup-node') || 
+      step.uses?.includes('setup-node')
     );
-    const hasCaching = job.steps.some(step => 
-      step.uses?.includes('actions/cache') || step.uses?.includes('cache')
+    const hasPythonSetup = job.steps.some(step => 
+      step.uses?.includes('actions/setup-python') || 
+      step.uses?.includes('setup-python')
+    );
+    const hasJavaSetup = job.steps.some(step => 
+      step.uses?.includes('actions/setup-java') || 
+      step.uses?.includes('setup-java')
     );
     
-    if (hasNodeSetup && !hasCaching) {
+    const hasCaching = job.steps.some(step => 
+      step.uses?.includes('actions/cache') || 
+      step.uses?.includes('cache')
+    );
+    
+    const hasInstallStep = job.steps.some(step => 
+      step.run?.includes('npm install') || 
+      step.run?.includes('yarn install') ||
+      step.run?.includes('pip install') ||
+      step.run?.includes('mvn install') ||
+      step.run?.includes('gradle build')
+    );
+    
+    // Only recommend caching if there's a setup step AND an install step
+    if ((hasNodeSetup || hasPythonSetup || hasJavaSetup) && hasInstallStep && !hasCaching) {
       const githubLink = createGitHubLink(githubContext, jobLineNumber);
+      const setupType = hasNodeSetup ? 'Node.js' : hasPythonSetup ? 'Python' : 'Java';
       
       results.push({
         id: `missing-cache-${jobId}`,
         type: 'performance',
         severity: 'warning',
         title: 'Missing dependency caching',
-        description: `Job '${jobId}' sets up Node.js but doesn't cache dependencies`,
+        description: `Job '${jobId}' sets up ${setupType} and installs dependencies but doesn't cache them`,
         file: fileName,
         location: { job: jobId, line: jobLineNumber },
-        suggestion: 'Add actions/cache to cache node_modules and improve build times',
+        suggestion: 'Add actions/cache to cache dependencies and improve build times',
         links: ['https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows'],
         githubUrl: githubLink
       });

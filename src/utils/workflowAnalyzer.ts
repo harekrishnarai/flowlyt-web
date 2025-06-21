@@ -4,6 +4,7 @@ import { analyzePerformanceIssues } from './analyzers/performanceAnalyzer';
 import { analyzeBestPractices } from './analyzers/bestPracticesAnalyzer';
 import { analyzeDependencyIssues } from './analyzers/dependencyAnalyzer';
 import { analyzeStructureIssues } from './analyzers/structureAnalyzer';
+import { analyzeWorkflowContext, filterResultsByContext, addContextualRecommendations } from './contextAnalyzer';
 
 // GitHub integration info for analyzers
 export interface GitHubAnalysisContext {
@@ -50,7 +51,10 @@ export function analyzeWorkflow(file: WorkflowFile): AnalysisReport {
 
   const githubContext = createGitHubAnalysisContext(file);
 
-  const results: AnalysisResult[] = [
+  // Analyze workflow context for intelligent filtering
+  const context = analyzeWorkflowContext(file.parsed, file.name, file.content);
+
+  let results: AnalysisResult[] = [
     ...analyzeSecurityIssues(file.parsed, file.name, file.content, githubContext),
     ...analyzePerformanceIssues(file.parsed, file.name, file.content, githubContext),
     ...analyzeBestPractices(file.parsed, file.name, file.content, githubContext),
@@ -58,17 +62,35 @@ export function analyzeWorkflow(file: WorkflowFile): AnalysisReport {
     ...analyzeStructureIssues(file.parsed, file.name, file.content, githubContext)
   ];
 
+  // Apply context-based filtering and adjustments
+  results = filterResultsByContext(results, context);
+  results = addContextualRecommendations(results, context, file.name);
+
   const errorCount = results.filter(r => r.severity === 'error').length;
   const warningCount = results.filter(r => r.severity === 'warning').length;
   const infoCount = results.filter(r => r.severity === 'info').length;
 
-  // Calculate score (0-100)
+  // Enhanced scoring algorithm that considers workflow context
   let score = 100;
   
   if (results.length > 0) {
-    const maxPossibleIssues = 20;
-    const weightedIssues = errorCount * 3 + warningCount * 2 + infoCount * 1;
+    // Weight issues based on severity and context
+    const criticalIssues = errorCount * 3;
+    const importantIssues = warningCount * 2;
+    const minorIssues = infoCount * 0.5; // Reduced weight for info issues
+    
+    // Adjust scoring based on workflow complexity
+    const complexityFactor = context.isComplexWorkflow ? 1.2 : 0.8;
+    const productionFactor = context.hasProductionIndicators ? 1.3 : 1.0;
+    
+    const weightedIssues = (criticalIssues + importantIssues + minorIssues) * complexityFactor * productionFactor;
+    const maxPossibleIssues = context.isComplexWorkflow ? 30 : 15;
+    
     score = Math.max(0, Math.round(100 - (weightedIssues / maxPossibleIssues) * 100));
+    
+    // Bonus points for good practices
+    if (errorCount === 0) score = Math.min(100, score + 5);
+    if (warningCount === 0 && errorCount === 0) score = Math.min(100, score + 5);
   }
 
   return {
@@ -1004,21 +1026,27 @@ export function generatePDFReport(reports: AnalysisReport[], githubInfo?: { repo
         yPosition += 15;
       });
 
-      // Tool information
+      // Tool information with analysis insights
       yPosition += 10;
-      addSectionHeader('About Flowlyt', colors.info);
+      addSectionHeader('About This Analysis', colors.info);
       
       doc.setFontSize(10);
       const aboutText = [
         'Flowlyt is an enterprise-grade GitHub Actions workflow analysis tool designed to help',
         'organizations maintain secure, performant, and well-structured CI/CD pipelines.',
         '',
+        'Analysis Quality Insights:',
+        `• Analyzed ${totalFiles} workflow file${totalFiles !== 1 ? 's' : ''} with context-aware intelligence`,
+        `• Applied ${totalErrors + totalWarnings + totalInfo} recommendations with smart filtering`,
+        `• Detected workflow types and complexity for targeted analysis`,
+        `• Reduced false positives through intelligent context analysis`,
+        '',
         'Key Features:',
         '• Comprehensive security vulnerability scanning',
         '• Performance optimization recommendations',
-        '• Best practice compliance checking',
-        '• Dependency management analysis',
-        '• Structural integrity validation',
+        '• Context-aware best practice compliance checking',
+        '• Intelligent dependency management analysis',
+        '• Structural integrity validation with smart filtering',
         '',
         'For more information, visit: https://github.com/harekrishnarai/flowlyt'
       ];
