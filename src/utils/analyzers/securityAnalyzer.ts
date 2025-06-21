@@ -19,31 +19,36 @@ export function analyzeSecurityIssues(
   githubContext: GitHubAnalysisContext = {}
 ): AnalysisResult[] {
   const results: AnalysisResult[] = [];
+  const processedLines = new Set<string>(); // Track processed line+type combinations to avoid duplicates
   
-  // Enhanced secret patterns for comprehensive detection
+  // Enhanced secret patterns for comprehensive detection (ordered by specificity)
   const secretPatterns = [
-    { pattern: /password\s*[:=]\s*['"]\w+['"]/, name: 'password' },
-    { pattern: /token\s*[:=]\s*['"]\w+['"]/, name: 'token' },
-    { pattern: /key\s*[:=]\s*['"]\w+['"]/, name: 'API key' },
-    { pattern: /secret\s*[:=]\s*['"]\w+['"]/, name: 'secret' },
-    { pattern: /aws_access_key_id\s*[:=]\s*['"]\w+['"]/, name: 'AWS access key' },
-    { pattern: /aws_secret_access_key\s*[:=]\s*['"]\w+['"]/, name: 'AWS secret key' },
-    { pattern: /github_token\s*[:=]\s*['"]\w+['"]/, name: 'GitHub token' },
-    { pattern: /api_key\s*[:=]\s*['"]\w+['"]/, name: 'API key' },
-    { pattern: /client_secret\s*[:=]\s*['"]\w+['"]/, name: 'client secret' },
-    { pattern: /private_key\s*[:=]\s*['"]\w+['"]/, name: 'private key' },
-    { pattern: /ssh_key\s*[:=]\s*['"]\w+['"]/, name: 'SSH key' },
-    { pattern: /database_url\s*[:=]\s*['"]\w+['"]/, name: 'database URL' },
-    { pattern: /connection_string\s*[:=]\s*['"]\w+['"]/, name: 'connection string' },
-    // Common token formats
-    { pattern: /['"]\b[A-Za-z0-9_-]{20,}['"]/, name: 'potential token' },
-    // Base64 encoded secrets (common pattern)
-    { pattern: /['"]\b[A-Za-z0-9+/]{40,}={0,2}['"]/, name: 'potential base64 secret' },
-    // JWT tokens
-    { pattern: /['"]\beyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+['"]/, name: 'JWT token' },
+    // Most specific patterns first
+    { pattern: /aws_access_key_id\s*[:=]\s*['"]\w+['"]/, name: 'AWS access key', priority: 1 },
+    { pattern: /aws_secret_access_key\s*[:=]\s*['"]\w+['"]/, name: 'AWS secret key', priority: 1 },
+    { pattern: /github_token\s*[:=]\s*['"]\w+['"]/, name: 'GitHub token', priority: 1 },
+    { pattern: /api_key\s*[:=]\s*['"]\w+['"]/, name: 'API key', priority: 1 },
+    { pattern: /client_secret\s*[:=]\s*['"]\w+['"]/, name: 'client secret', priority: 1 },
+    { pattern: /private_key\s*[:=]\s*['"]\w+['"]/, name: 'private key', priority: 1 },
+    { pattern: /ssh_key\s*[:=]\s*['"]\w+['"]/, name: 'SSH key', priority: 1 },
+    { pattern: /database_url\s*[:=]\s*['"]\w+['"]/, name: 'database URL', priority: 1 },
+    { pattern: /connection_string\s*[:=]\s*['"]\w+['"]/, name: 'connection string', priority: 1 },
+    // JWT tokens (very specific pattern)
+    { pattern: /['"]\beyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+['"]/, name: 'JWT token', priority: 2 },
+    // Less specific patterns
+    { pattern: /password\s*[:=]\s*['"]\w+['"]/, name: 'password', priority: 3 },
+    { pattern: /token\s*[:=]\s*['"]\w+['"]/, name: 'token', priority: 3 },
+    { pattern: /key\s*[:=]\s*['"]\w+['"]/, name: 'key', priority: 3 },
+    { pattern: /secret\s*[:=]\s*['"]\w+['"]/, name: 'secret', priority: 3 },
+    // Generic patterns (lowest priority)
+    { pattern: /['"]\b[A-Za-z0-9+/]{40,}={0,2}['"]/, name: 'potential base64 secret', priority: 4 },
+    { pattern: /['"]\b[A-Za-z0-9_-]{20,}['"]/, name: 'potential token', priority: 5 },
   ];
   
-  secretPatterns.forEach(({ pattern, name }) => {
+  // Group patterns by line and only keep the highest priority match per line
+  const lineMatches = new Map<number, { pattern: any, match: RegExpMatchArray }>();
+  
+  secretPatterns.forEach(({ pattern, name, priority }) => {
     const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
     for (const match of matches) {
       // Skip if it's clearly referencing a secret (contains ${{ secrets. or env.)
@@ -52,61 +57,87 @@ export function analyzeSecurityIssues(
       }
       
       const lineNumber = findLineNumber(content, match[0]);
-      const githubLink = createGitHubLink(githubContext, lineNumber);
-      const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
+      const existingMatch = lineMatches.get(lineNumber);
       
-      results.push({
-        id: `hardcoded-${name}-${Date.now()}-${Math.random()}`,
-        type: 'security',
-        severity: 'error',
-        title: `Hardcoded ${name} detected`,
-        description: `Found potential hardcoded ${name} in workflow. Use GitHub Secrets instead.`,
-        file: fileName,
-        location: { line: lineNumber },
-        suggestion: `Store sensitive values in GitHub Secrets and reference them using \${{ secrets.SECRET_NAME }}`,
-        links: ['https://docs.github.com/en/actions/security-guides/encrypted-secrets'],
-        githubUrl: githubLink,
-        codeSnippet: codeSnippet || undefined
-      });
+      // Only keep this match if it's higher priority (lower number = higher priority)
+      if (!existingMatch || priority < existingMatch.pattern.priority) {
+        lineMatches.set(lineNumber, { 
+          pattern: { pattern, name, priority }, 
+          match 
+        });
+      }
     }
   });
+  
+  // Process the deduplicated matches
+  lineMatches.forEach(({ pattern, match }) => {
+    const lineNumber = findLineNumber(content, match[0]);
+    const githubLink = createGitHubLink(githubContext, lineNumber);
+    const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
+    
+    results.push({
+      id: `hardcoded-${pattern.name.replace(/\s+/g, '-')}-${lineNumber}`,
+      type: 'security',
+      severity: 'error',
+      title: `Hardcoded ${pattern.name} detected`,
+      description: `Found potential hardcoded ${pattern.name} in workflow. Use GitHub Secrets instead.`,
+      file: fileName,
+      location: { line: lineNumber },
+      suggestion: `Store sensitive values in GitHub Secrets and reference them using \${{ secrets.SECRET_NAME }}`,
+      links: ['https://docs.github.com/en/actions/security-guides/encrypted-secrets'],
+      githubUrl: githubLink,
+      codeSnippet: codeSnippet || undefined
+    });
+  });
 
-  // Check for sensitive information in logs/output
+  // Check for sensitive information in logs/output with deduplication
   const sensitiveLogPatterns = [
-    /echo.*password/i,
-    /echo.*token/i,
-    /echo.*secret/i,
-    /echo.*key/i,
-    /print.*password/i,
-    /print.*token/i,
-    /printf.*password/i,
-    /console\.log.*password/i,
-    /console\.log.*token/i,
-    /cat.*\.env/i,
-    /cat.*config/i,
+    { pattern: /echo.*password/i, type: 'password logging' },
+    { pattern: /echo.*token/i, type: 'token logging' },
+    { pattern: /echo.*secret/i, type: 'secret logging' },
+    { pattern: /echo.*key/i, type: 'key logging' },
+    { pattern: /print.*password/i, type: 'password logging' },
+    { pattern: /print.*token/i, type: 'token logging' },
+    { pattern: /printf.*password/i, type: 'password logging' },
+    { pattern: /console\.log.*password/i, type: 'password logging' },
+    { pattern: /console\.log.*token/i, type: 'token logging' },
+    { pattern: /cat.*\.env/i, type: 'environment file access' },
+    { pattern: /cat.*config/i, type: 'config file access' },
   ];
 
-  sensitiveLogPatterns.forEach(pattern => {
+  const logLineMatches = new Map<number, { pattern: any, match: RegExpMatchArray }>();
+
+  sensitiveLogPatterns.forEach(({ pattern, type }) => {
     const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
     for (const match of matches) {
       const lineNumber = findLineNumber(content, match[0]);
-      const githubLink = createGitHubLink(githubContext, lineNumber);
-      const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
+      const lineKey = `${lineNumber}-sensitive-log`;
       
-      results.push({
-        id: `sensitive-log-${Date.now()}-${Math.random()}`,
-        type: 'security',
-        severity: 'warning',
-        title: 'Potential sensitive information in logs',
-        description: `Command may expose sensitive information in logs: ${match[0]}`,
-        file: fileName,
-        location: { line: lineNumber },
-        suggestion: 'Avoid printing sensitive information to logs. Use secure methods for debugging.',
-        links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
-        githubUrl: githubLink,
-        codeSnippet: codeSnippet || undefined
-      });
+      if (!processedLines.has(lineKey)) {
+        logLineMatches.set(lineNumber, { pattern: { pattern, type }, match });
+        processedLines.add(lineKey);
+      }
     }
+  });
+
+  logLineMatches.forEach(({ pattern, match }) => {
+    const lineNumber = findLineNumber(content, match[0]);
+    const githubLink = createGitHubLink(githubContext, lineNumber);
+    const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
+    
+    results.push({
+      id: `sensitive-log-${lineNumber}`,
+      type: 'security',
+      severity: 'warning',
+      title: 'Potential sensitive information in logs',
+      description: `Command may expose sensitive information in logs: ${match[0]}`,
+      file: fileName,
+      location: { line: lineNumber },
+      suggestion: 'Avoid printing sensitive information to logs. Use secure methods for debugging.',
+      links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
+      githubUrl: githubLink,
+      codeSnippet: codeSnippet || undefined
+    });
   });
 
   // Check for malicious network calls and data exfiltration
