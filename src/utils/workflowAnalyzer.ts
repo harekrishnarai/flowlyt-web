@@ -112,62 +112,166 @@ export function generateMarkdownReport(reports: AnalysisReport[]): string {
   const totalIssues = reports.reduce((sum, report) => sum + report.summary.totalIssues, 0);
   const averageScore = reports.reduce((sum, report) => sum + report.summary.score, 0) / totalFiles;
 
-  let markdown = `# GitHub Actions Workflow Analysis Report\n\n`;
+  let markdown = `# 🔍 GitHub Actions Workflow Analysis Report\n\n`;
   markdown += `**Generated**: ${new Date().toLocaleString()}\n`;
   markdown += `**Files Analyzed**: ${totalFiles}\n`;
   markdown += `**Total Issues**: ${totalIssues}\n`;
   markdown += `**Average Score**: ${averageScore.toFixed(1)}/100\n`;
-  markdown += `**Analyzed with**: [Flowlyt](https://github.com/harekrishnarai/flowlyt)\n\n`;
+  markdown += `**Enhanced with**: Code context snippets for better issue understanding\n`;
+  markdown += `**Analyzed with**: [Flowlyt](https://github.com/harekrishnarai/flowlyt) - Advanced GitHub Actions Analyzer\n\n`;
+
+  markdown += `## 📊 Analysis Summary\n\n`;
+  
+  // Summary by severity
+  const totalErrors = reports.reduce((sum, r) => sum + r.summary.errorCount, 0);
+  const totalWarnings = reports.reduce((sum, r) => sum + r.summary.warningCount, 0);
+  const totalInfo = reports.reduce((sum, r) => sum + r.summary.infoCount, 0);
+  
+  markdown += `| Severity | Count | Description |\n`;
+  markdown += `|----------|-------|-------------|\n`;
+  markdown += `| ❌ Error | ${totalErrors} | Critical issues requiring immediate attention |\n`;
+  markdown += `| ⚠️ Warning | ${totalWarnings} | Important issues that should be addressed |\n`;
+  markdown += `| ℹ️ Info | ${totalInfo} | Informational notices and suggestions |\n\n`;
+
+  // Add top issues section
+  const allIssues = reports.flatMap(r => r.results);
+  const criticalIssues = allIssues.filter(i => i.severity === 'error').slice(0, 3);
+  
+  if (criticalIssues.length > 0) {
+    markdown += `## 🚨 Top Critical Issues\n\n`;
+    criticalIssues.forEach((issue, index) => {
+      markdown += `${index + 1}. **${issue.title}** (${issue.file})\n`;
+      markdown += `   - ${issue.description}\n`;
+      if (issue.suggestion) {
+        markdown += `   - 💡 *${issue.suggestion}*\n`;
+      }
+      markdown += `\n`;
+    });
+  }
+
+  markdown += `---\n\n`;
 
   reports.forEach(report => {
-    markdown += `## ${report.fileName}\n\n`;
-    markdown += `**Score**: ${report.summary.score}/100\n`;
-    markdown += `**Issues**: ${report.summary.errorCount} errors, ${report.summary.warningCount} warnings, ${report.summary.infoCount} info\n\n`;
+    markdown += `## 📄 ${report.fileName}\n\n`;
+    
+    // Score with visual indicator
+    const scoreEmoji = report.summary.score >= 80 ? '🟢' : report.summary.score >= 60 ? '🟡' : '🔴';
+    markdown += `**${scoreEmoji} Score**: ${report.summary.score}/100\n`;
+    markdown += `**Issues Found**: ${report.summary.errorCount} errors, ${report.summary.warningCount} warnings, ${report.summary.infoCount} info\n\n`;
 
     if (report.results.length > 0) {
-      report.results.forEach(result => {
-        const emoji = result.severity === 'error' ? '❌' : result.severity === 'warning' ? '⚠️' : 'ℹ️';
-        markdown += `### ${emoji} ${result.title}\n\n`;
-        markdown += `**Type**: ${result.type}\n`;
-        markdown += `**Severity**: ${result.severity}\n`;
-        markdown += `**Description**: ${result.description}\n`;
-        
-        if (result.location) {
-          markdown += `**Location**: `;
-          if (result.location.line) markdown += `Line ${result.location.line}`;
-          if (result.location.job) markdown += `, Job: ${result.location.job}`;
-          if (result.location.step !== undefined) markdown += `, Step: ${result.location.step + 1}`;
-          markdown += `\n`;
-        }
-        
-        if (result.suggestion) {
-          markdown += `**Suggestion**: ${result.suggestion}\n`;
-        }
+      // Group issues by type for better organization
+      const issuesByType = report.results.reduce((acc, result) => {
+        if (!acc[result.type]) acc[result.type] = [];
+        acc[result.type].push(result);
+        return acc;
+      }, {} as Record<string, typeof report.results>);
 
-        if (result.codeSnippet) {
-          markdown += `**Code Context**:\n`;
-          markdown += `\`\`\`yaml\n`;
-          markdown += `${result.codeSnippet.content}\n`;
-          markdown += `\`\`\`\n`;
-          markdown += `_Lines ${result.codeSnippet.startLine}-${result.codeSnippet.endLine}_\n`;
-        }
+      Object.entries(issuesByType).forEach(([type, issues]) => {
+        const typeEmoji = type === 'security' ? '🔒' : 
+                         type === 'performance' ? '⚡' : 
+                         type === 'best-practices' ? '✨' : 
+                         type === 'dependency' ? '📦' : '🏗️';
         
-        if (result.links && result.links.length > 0) {
-          markdown += `**References**:\n`;
-          result.links.forEach(link => {
-            markdown += `- [${link}](${link})\n`;
-          });
-        }
+        markdown += `### ${typeEmoji} ${type.charAt(0).toUpperCase() + type.slice(1).replace('-', ' ')} Issues (${issues.length})\n\n`;
         
-        markdown += `\n`;
+        issues.forEach(result => {
+          const emoji = result.severity === 'error' ? '❌' : result.severity === 'warning' ? '⚠️' : 'ℹ️';
+          markdown += `#### ${emoji} ${result.title}\n\n`;
+          
+          // Issue metadata table
+          markdown += `| Property | Value |\n`;
+          markdown += `|----------|-------|\n`;
+          markdown += `| **Type** | ${result.type} |\n`;
+          markdown += `| **Severity** | ${result.severity} |\n`;
+          
+          if (result.location) {
+            let locationStr = '';
+            if (result.location.line) locationStr += `Line ${result.location.line}`;
+            if (result.location.job) locationStr += `, Job: ${result.location.job}`;
+            if (result.location.step !== undefined) locationStr += `, Step: ${result.location.step + 1}`;
+            markdown += `| **Location** | ${locationStr} |\n`;
+          }
+          
+          markdown += `\n**Description**: ${result.description}\n\n`;
+          
+          if (result.suggestion) {
+            markdown += `💡 **Suggestion**: ${result.suggestion}\n\n`;
+          }
+
+          if (result.codeSnippet) {
+            markdown += `\n**📝 Code Context** (Lines ${result.codeSnippet.startLine}-${result.codeSnippet.endLine}):\n`;
+            markdown += `\`\`\`yaml\n`;
+            
+            // Add line numbers and highlighting
+            const lines = result.codeSnippet.content.split('\n');
+            lines.forEach((line, index) => {
+              const lineNumber = result.codeSnippet!.startLine + index;
+              const isHighlighted = result.codeSnippet!.highlightLine && 
+                lineNumber === result.codeSnippet!.startLine + result.codeSnippet!.highlightLine - 1;
+              
+              // Add line number prefix
+              const prefix = `${lineNumber.toString().padStart(3, ' ')}: `;
+              markdown += `${prefix}${line}${isHighlighted ? ' # ⚠️ Issue detected here' : ''}\n`;
+            });
+            
+            markdown += `\`\`\`\n`;
+            
+            if (result.codeSnippet.highlightLine) {
+              markdown += `> ⚠️ **Issue located at line ${result.codeSnippet.startLine + result.codeSnippet.highlightLine - 1}**\n`;
+            }
+            markdown += `\n`;
+          }
+          
+          if (result.links && result.links.length > 0) {
+            markdown += `**📚 References**:\n`;
+            result.links.forEach(link => {
+              markdown += `- [${link}](${link})\n`;
+            });
+            markdown += `\n`;
+          }
+          
+          markdown += `---\n\n`;
+        });
       });
     } else {
-      markdown += `✅ No issues found!\n\n`;
+      markdown += `✅ **Excellent!** No issues found in this workflow file.\n\n`;
     }
   });
 
   markdown += `\n---\n\n`;
-  markdown += `*This report was generated by [Flowlyt](https://github.com/harekrishnarai/flowlyt) - GitHub Actions Workflow Analyzer*\n`;
+  markdown += `## 🎯 Quick Action Items\n\n`;
+  
+  const actionItems = reports.flatMap(r => r.results)
+    .filter(i => i.severity === 'error')
+    .slice(0, 5)
+    .map((issue, index) => `${index + 1}. **${issue.file}**: ${issue.title} - ${issue.suggestion || 'Review and fix this issue'}`);
+  
+  if (actionItems.length > 0) {
+    actionItems.forEach(item => markdown += `${item}\n`);
+  } else {
+    markdown += `🎉 **Great job!** No critical issues found that require immediate action.\n`;
+  }
+  
+  markdown += `\n## 📈 Improvement Suggestions\n\n`;
+  markdown += `- **Security**: Always pin actions to specific SHA commits for better security\n`;
+  markdown += `- **Performance**: Implement caching strategies to speed up your workflows\n`;
+  markdown += `- **Maintainability**: Add clear names and descriptions to all jobs and steps\n`;
+  markdown += `- **Monitoring**: Set up proper error handling and notifications\n`;
+  markdown += `- **Documentation**: Keep your workflow files well-documented and organized\n`;
+  
+  markdown += `\n---\n\n`;
+  markdown += `<div align="center">\n\n`;
+  markdown += `### 🚀 Powered by Flowlyt\n\n`;
+  markdown += `*Advanced GitHub Actions Workflow Analyzer with Code Context*\n\n`;
+  markdown += `[🌟 Star on GitHub](https://github.com/harekrishnarai/flowlyt) | [📖 Documentation](https://github.com/harekrishnarai/flowlyt#readme) | [🐛 Report Issues](https://github.com/harekrishnarai/flowlyt/issues)\n\n`;
+  markdown += `**Features:**\n`;
+  markdown += `- 🔍 Comprehensive security analysis with 50+ detection patterns\n`;
+  markdown += `- 📝 Code snippet extraction for better issue understanding\n`;
+  markdown += `- ⚡ Performance optimization recommendations\n`;
+  markdown += `- 🎯 Best practices validation and suggestions\n`;
+  markdown += `- 📊 Beautiful reports in Markdown and PDF formats\n\n`;
+  markdown += `</div>\n`;
 
   return markdown;
 }
@@ -212,6 +316,70 @@ export function generatePDFReport(reports: AnalysisReport[], githubInfo?: { repo
         doc.setTextColor(...colors.text);
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
+      };
+
+      // Helper function to render code snippets
+      const renderCodeSnippet = (codeSnippet: any, maxWidth: number) => {
+        if (!codeSnippet) return 0;
+        
+        const codeLines = codeSnippet.content.split('\n');
+        const snippetHeight = 8 + (codeLines.length * 4) + 8; // Header + lines + padding
+        
+        checkNewPage(snippetHeight + 10);
+        
+        // Code snippet header
+        doc.setFillColor(240, 240, 240); // Light gray background
+        doc.rect(30, yPosition, maxWidth - 60, 6, 'F');
+        doc.setTextColor(...colors.secondary);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Code Context (Lines ${codeSnippet.startLine}-${codeSnippet.endLine})`, 32, yPosition + 4);
+        yPosition += 8;
+        
+        // Code snippet background
+        doc.setFillColor(248, 248, 248); // Very light gray for code
+        const codeBlockHeight = codeLines.length * 4 + 4;
+        doc.rect(30, yPosition, maxWidth - 60, codeBlockHeight, 'F');
+        
+        // Code snippet border
+        doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.1);
+        doc.rect(30, yPosition, maxWidth - 60, codeBlockHeight);
+        
+        // Render code lines
+        doc.setTextColor(...colors.text);
+        doc.setFont('courier', 'normal'); // Monospace font for code
+        doc.setFontSize(7);
+        
+        codeLines.forEach((line: string, index: number) => {
+          const lineNumber = codeSnippet.startLine + index;
+          const isHighlighted = codeSnippet.highlightLine && 
+            lineNumber === codeSnippet.startLine + codeSnippet.highlightLine - 1;
+          
+          const currentY = yPosition + 3 + (index * 4);
+          
+          // Highlight the problematic line
+          if (isHighlighted) {
+            doc.setFillColor(255, 251, 204); // Light yellow highlight
+            doc.rect(32, currentY - 2, maxWidth - 64, 4, 'F');
+          }
+          
+          // Line number (right-aligned in a small column)
+          doc.setTextColor(150, 150, 150);
+          doc.setFont('courier', 'normal');
+          const lineNumStr = lineNumber.toString().padStart(3, ' ');
+          doc.text(lineNumStr, 34, currentY);
+          
+          // Code content
+          doc.setTextColor(...colors.text);
+          const codeContent = line.substring(0, 80); // Truncate long lines
+          doc.text(codeContent, 45, currentY);
+        });
+        
+        yPosition += codeBlockHeight + 4;
+        resetTextFormatting();
+        
+        return snippetHeight;
       };
 
       // Helper function to render best practices sections
@@ -868,6 +1036,13 @@ export function generatePDFReport(reports: AnalysisReport[], githubInfo?: { repo
                   doc.text(locationText, 30, yPosition);
                   doc.setTextColor(...colors.text);
                   yPosition += 4;
+                }
+                
+                // Render code snippet if available
+                if (issue.codeSnippet) {
+                  yPosition += 2;
+                  renderCodeSnippet(issue.codeSnippet, pageWidth);
+                  yPosition += 2;
                 }
                 
                 if (issue.suggestion) {

