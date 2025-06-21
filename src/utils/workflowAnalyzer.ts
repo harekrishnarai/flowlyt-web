@@ -1150,7 +1150,7 @@ export function generatePDFReport(reports: AnalysisReport[], githubInfo?: { repo
       currentPage++;
       yPosition = 40;
 
-      addSectionHeader('Action Plan & Next Steps', colors.primary);
+      addSectionHeader('Action Plan & Next Steps', colors.primary, 'Prioritized recommendations based on analysis findings');
       
       const actionItems = [
         {
@@ -1176,37 +1176,61 @@ export function generatePDFReport(reports: AnalysisReport[], githubInfo?: { repo
         }
       ].filter(item => item.show);
 
-      actionItems.forEach((item) => {
-        checkNewPage(25);
+      // Add some spacing before action items
+      yPosition += 5;
+
+      actionItems.forEach((item, index) => {
+        checkNewPage(35);
         
         const priorityColor = item.priority === 'HIGH' ? colors.error :
                              item.priority === 'MEDIUM' ? colors.warning : colors.info;
         
-        // Priority badge
+        // Add spacing between items
+        if (index > 0) {
+          yPosition += 10;
+        }
+        
+        // Priority badge with better styling
         doc.setFillColor(...priorityColor);
-        doc.rect(20, yPosition, 25, 8, 'F');
+        doc.roundedRect(20, yPosition, 30, 10, 2, 2, 'F');
         doc.setTextColor(...colors.white);
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'bold');
-        doc.text(item.priority, 22, yPosition + 5);
-        
-        // Action item details - reset formatting after colored background
-        resetTextFormatting();
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.text(item.title, 50, yPosition + 5);
-        doc.setFont('helvetica', 'normal');
-        yPosition += 10;
-        
-        doc.setFontSize(10);
-        doc.text(item.description, 20, yPosition);
-        yPosition += 5;
-        
         doc.setFontSize(9);
-        doc.setTextColor(...colors.secondary);
-        doc.text(`Recommended timeframe: ${item.timeframe}`, 20, yPosition);
+        doc.setFont('helvetica', 'bold');
+        const priorityWidth = doc.getTextWidth(item.priority);
+        doc.text(item.priority, 20 + (30 - priorityWidth) / 2, yPosition + 7);
+        
+        // Action item title with proper spacing
+        resetTextFormatting();
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
         doc.setTextColor(...colors.text);
+        doc.text(item.title, 60, yPosition + 7);
         yPosition += 15;
+        
+        // Description with proper indentation
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...colors.text);
+        doc.text(item.description, 25, yPosition);
+        yPosition += 8;
+        
+        // Timeframe with better styling
+        doc.setFontSize(10);
+        doc.setTextColor(...colors.secondary);
+        doc.setFont('helvetica', 'italic');
+        doc.text(`Recommended timeframe: ${item.timeframe}`, 25, yPosition);
+        yPosition += 6;
+        
+        // Add separator line except for last item
+        if (index < actionItems.length - 1) {
+          doc.setDrawColor(...colors.lightGrey);
+          doc.setLineWidth(0.5);
+          doc.line(20, yPosition + 5, pageWidth - 20, yPosition + 5);
+          doc.setDrawColor(0, 0, 0);
+          doc.setLineWidth(0.1);
+        }
+        
+        resetTextFormatting();
       });
 
       // Tool information with analysis insights
