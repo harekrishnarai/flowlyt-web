@@ -14,7 +14,7 @@ import {
   Download,
   Filter,
   FileText,
-  Upload
+  RefreshCw
 } from 'lucide-react';
 import { AnalysisReport, WorkflowFile } from '../types/workflow';
 import { generateMarkdownReport, generatePDFReport } from '../utils/workflowAnalyzer';
@@ -163,7 +163,7 @@ export default function AnalysisResults({ reports, workflowFiles, onNewAnalysis 
             onClick={onNewAnalysis}
             className="inline-flex items-center px-4 py-2 bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-700 transition-colors min-h-[44px]"
           >
-            <Upload className="w-5 h-5 mr-2" />
+            <RefreshCw className="w-5 h-5 mr-2" />
             New Analysis
           </button>
           <button
