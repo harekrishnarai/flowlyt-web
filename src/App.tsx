@@ -267,6 +267,7 @@ function App() {
           <div className="bg-white/60 backdrop-blur-sm border border-white/20 rounded-2xl p-6 lg:p-8">
             <AnalysisResults
               reports={analysisReports}
+              workflowFiles={workflowFiles}
               onExport={() => {}}
               onNewAnalysis={handleNewAnalysis}
             />

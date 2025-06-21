@@ -16,11 +16,12 @@ import {
   FileText,
   Upload
 } from 'lucide-react';
-import { AnalysisReport } from '../types/workflow';
+import { AnalysisReport, WorkflowFile } from '../types/workflow';
 import { generateMarkdownReport, generatePDFReport } from '../utils/workflowAnalyzer';
 
 interface AnalysisResultsProps {
   reports: AnalysisReport[];
+  workflowFiles?: WorkflowFile[];
   onExport: () => void;
   onNewAnalysis: () => void;
 }
@@ -39,7 +40,7 @@ const typeConfig = {
   structure: { icon: GitBranch, color: 'text-blue-600', label: 'Structure' }
 };
 
-export default function AnalysisResults({ reports, onNewAnalysis }: AnalysisResultsProps) {
+export default function AnalysisResults({ reports, workflowFiles, onNewAnalysis }: AnalysisResultsProps) {
   const [selectedFile, setSelectedFile] = useState<string>(reports[0]?.fileId || '');
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
   const [selectedSeverities, setSelectedSeverities] = useState<Set<string>>(new Set());
@@ -92,11 +93,34 @@ export default function AnalysisResults({ reports, onNewAnalysis }: AnalysisResu
 
   const handleExportPDF = async () => {
     try {
-      const pdfBlob = await generatePDFReport(reports);
+      // Extract GitHub information from the first GitHub-sourced file
+      const githubFile = reports.find(report => {
+        const workflowFile = workflowFiles?.find((wf: WorkflowFile) => wf.id === report.fileId);
+        return workflowFile?.source === 'github';
+      });
+      
+      let githubInfo: { repoUrl?: string, owner?: string, repo?: string } | undefined;
+      
+      if (githubFile) {
+        const workflowFile = workflowFiles?.find((wf: WorkflowFile) => wf.id === githubFile.fileId);
+        if (workflowFile?.repoUrl) {
+          // Extract owner and repo from repoUrl: https://github.com/owner/repo
+          const urlParts = workflowFile.repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+          if (urlParts) {
+            githubInfo = {
+              repoUrl: workflowFile.repoUrl,
+              owner: urlParts[1],
+              repo: urlParts[2]
+            };
+          }
+        }
+      }
+      
+      const { blob: pdfBlob, filename } = await generatePDFReport(reports, githubInfo);
       const url = URL.createObjectURL(pdfBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'workflow-analysis-report.pdf';
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

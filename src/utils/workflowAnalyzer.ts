@@ -178,16 +178,217 @@ export function generatePDFReport(reports: AnalysisReport[], githubInfo?: { repo
       }
 
       // Helper functions
+      const resetTextFormatting = () => {
+        doc.setTextColor(...colors.text);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+      };
+
+      // Helper function to render best practices sections
+      const renderBestPracticesSection = (practices: Array<{category: string, practices: string[]}>) => {
+        practices.forEach(section => {
+          checkNewPage(25);
+          
+          // Category header with modern styling
+          doc.setFillColor(...colors.secondary);
+          doc.roundedRect(20, yPosition - 3, pageWidth - 40, 12, 2, 2, 'F');
+          doc.setTextColor(...colors.white);
+          doc.setFontSize(12);
+          doc.setFont('helvetica', 'bold');
+          doc.text(section.category, 25, yPosition + 5);
+          
+          // Reset formatting after colored background
+          resetTextFormatting();
+          yPosition += 15;
+
+          section.practices.forEach(practice => {
+            checkNewPage(8);
+            doc.setFontSize(10);
+            const practiceText = doc.splitTextToSize(`• ${practice}`, pageWidth - 50);
+            doc.text(practiceText, 25, yPosition);
+            yPosition += practiceText.length * 5 + 3;
+          });
+
+          yPosition += 8;
+        });
+      };
+
+      // Helper function to add best practices pages
+      const addBestPracticesPages = () => {
+        // Page 1: Security Best Practices
+        doc.addPage();
+        addHeader();
+        currentPage++;
+        yPosition = 40;
+
+        addSectionHeader('GitHub Actions Security Best Practices', colors.error, 'Essential security guidelines for secure CI/CD workflows');
+
+        const securityPractices = [
+          {
+            category: 'Secret Management',
+            practices: [
+              'Use GitHub Secrets for all sensitive data (API keys, passwords, tokens)',
+              'Never hardcode secrets directly in workflow files',
+              'Implement secret rotation policies and regular audits',
+              'Use environment-specific secrets with appropriate scoping',
+              'Consider using external secret management solutions for enterprise environments'
+            ]
+          },
+          {
+            category: 'Action Security',
+            practices: [
+              'Pin actions to specific SHA commits instead of using tags or branches',
+              'Regularly review and update action versions for security patches',
+              'Audit third-party actions before use in production workflows',
+              'Implement action allowlisting in enterprise environments',
+              'Use official actions from verified publishers when possible'
+            ]
+          },
+          {
+            category: 'Permission Management',
+            practices: [
+              'Follow principle of least privilege for workflow permissions',
+              'Explicitly define required permissions using "permissions" key',
+              'Avoid using "write-all" or overly broad permissions',
+              'Regularly audit workflow permissions and access patterns',
+              'Implement branch protection rules and required status checks'
+            ]
+          },
+          {
+            category: 'Code Security',
+            practices: [
+              'Implement code scanning and vulnerability assessments',
+              'Use dependency scanning for security vulnerabilities',
+              'Validate all inputs and sanitize user-provided data',
+              'Implement proper error handling without exposing sensitive information',
+              'Use security-focused linting and static analysis tools'
+            ]
+          }
+        ];
+
+        renderBestPracticesSection(securityPractices);
+
+        // Page 2: Performance Best Practices
+        doc.addPage();
+        addHeader();
+        currentPage++;
+        yPosition = 40;
+
+        addSectionHeader('Performance Optimization Best Practices', colors.warning, 'Strategies for efficient and fast CI/CD workflows');
+
+        const performancePractices = [
+          {
+            category: 'Caching Strategies',
+            practices: [
+              'Implement dependency caching for package managers (npm, pip, maven, etc.)',
+              'Cache build artifacts and intermediate results',
+              'Use action-specific caching mechanisms when available',
+              'Implement cache invalidation strategies for optimal performance',
+              'Monitor cache hit rates and adjust strategies accordingly'
+            ]
+          },
+          {
+            category: 'Parallel Execution',
+            practices: [
+              'Use job parallelization for independent tasks',
+              'Implement matrix builds for multi-environment testing',
+              'Optimize job dependencies to minimize sequential execution',
+              'Balance resource usage across concurrent jobs',
+              'Consider workflow splitting for large monorepos'
+            ]
+          },
+          {
+            category: 'Resource Optimization',
+            practices: [
+              'Choose appropriate runner types for specific workloads',
+              'Optimize Docker image usage and implement image caching',
+              'Minimize workflow run duration to reduce costs',
+              'Implement conditional execution to skip unnecessary steps',
+              'Use workflow artifacts efficiently for data sharing between jobs'
+            ]
+          },
+          {
+            category: 'Monitoring & Metrics',
+            practices: [
+              'Implement workflow performance monitoring and alerting',
+              'Track build times and resource usage patterns',
+              'Set up failure notifications and automated remediation',
+              'Monitor runner queue times and capacity planning',
+              'Implement cost tracking and optimization strategies'
+            ]
+          }
+        ];
+
+        renderBestPracticesSection(performancePractices);
+
+        // Page 3: Maintenance Best Practices
+        doc.addPage();
+        addHeader();
+        currentPage++;
+        yPosition = 40;
+
+        addSectionHeader('Workflow Maintenance & Documentation', colors.info, 'Best practices for maintainable and well-documented workflows');
+
+        const maintenancePractices = [
+          {
+            category: 'Documentation Standards',
+            practices: [
+              'Maintain comprehensive README documentation for all workflows',
+              'Document workflow triggers, inputs, and expected outputs',
+              'Include troubleshooting guides and common issue resolution',
+              'Maintain changelog for workflow modifications',
+              'Document dependencies and integration requirements'
+            ]
+          },
+          {
+            category: 'Code Organization',
+            practices: [
+              'Use consistent naming conventions for workflows and jobs',
+              'Organize workflows logically by purpose and environment',
+              'Implement reusable workflows and composite actions',
+              'Maintain clean and readable YAML structure',
+              'Use meaningful job and step names with clear descriptions'
+            ]
+          },
+          {
+            category: 'Version Control',
+            practices: [
+              'Implement proper branching strategies for workflow changes',
+              'Use pull requests for all workflow modifications',
+              'Maintain separate workflows for different environments',
+              'Implement workflow testing and validation processes',
+              'Tag stable workflow versions for production use'
+            ]
+          },
+          {
+            category: 'Compliance & Governance',
+            practices: [
+              'Implement organizational workflow policies and standards',
+              'Maintain audit trails for all workflow executions',
+              'Ensure compliance with industry regulations and standards',
+              'Implement workflow approval processes for critical changes',
+              'Regular workflow security and compliance reviews'
+            ]
+          }
+        ];
+
+        renderBestPracticesSection(maintenancePractices);
+
+        // Add footer for all best practices pages (simplified footer approach)
+        const totalPages = Math.ceil(reports.length) + 5;
+        addFooter(currentPage - 2, totalPages);
+        addFooter(currentPage - 1, totalPages);
+        addFooter(currentPage, totalPages);
+      };
+
       const addHeader = () => {
-        // Modern gradient header
+        // Modern gradient header using multiple rectangles for gradient effect
         doc.setFillColor(...colors.gradient1);
         doc.rect(0, 0, pageWidth, 30, 'F');
         
-        // Add subtle gradient effect with overlays
+        // Add layered gradient effect
         doc.setFillColor(...colors.gradient2);
-        doc.setGState(new doc.GState({ opacity: 0.7 }));
         doc.rect(0, 0, pageWidth / 2, 30, 'F');
-        doc.setGState(new doc.GState({ opacity: 1.0 }));
         
         // Title with enhanced typography
         doc.setTextColor(...colors.white);
@@ -204,68 +405,121 @@ export function generatePDFReport(reports: AnalysisReport[], githubInfo?: { repo
         doc.setLineWidth(1);
         doc.line(20, 25, pageWidth - 20, 25);
         
-        // Reset colors
-        doc.setTextColor(...colors.text);
-        doc.setFont('helvetica', 'normal');
+        // Reset everything to default
+        resetTextFormatting();
         doc.setDrawColor(0, 0, 0);
         doc.setLineWidth(0.1);
       };
 
       const addFooter = (pageNum: number, totalPages: number) => {
+        // Modern footer with gradient background
+        doc.setFillColor(...colors.lightGrey);
+        doc.rect(0, pageHeight - 20, pageWidth, 20, 'F');
+        
+        // Footer content
         doc.setFontSize(8);
         doc.setTextColor(...colors.secondary);
-        doc.text('Generated by Flowlyt - Enterprise Workflow Analysis Tool', 20, pageHeight - 15);
-        doc.text(`Page ${pageNum} of ${totalPages}`, pageWidth - 40, pageHeight - 15);
-        doc.text(new Date().toLocaleString(), pageWidth - 80, pageHeight - 8);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Generated by Flowlyt - Enterprise Workflow Analysis Platform', 20, pageHeight - 12);
+        
+        // Page number with modern styling
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        const pageText = `${pageNum} / ${totalPages}`;
+        const pageTextWidth = doc.getTextWidth(pageText);
+        doc.text(pageText, pageWidth - 20 - pageTextWidth, pageHeight - 12);
+        
+        // Timestamp
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        const timeText = new Date().toLocaleString();
+        const timeTextWidth = doc.getTextWidth(timeText);
+        doc.text(timeText, pageWidth - 20 - timeTextWidth, pageHeight - 5);
+        
+        // Decorative line
+        doc.setDrawColor(...colors.primary);
+        doc.setLineWidth(0.5);
+        doc.line(20, pageHeight - 18, pageWidth - 20, pageHeight - 18);
+        
+        // Reset
+        doc.setDrawColor(0, 0, 0);
+        doc.setLineWidth(0.1);
+        doc.setTextColor(...colors.text);
       };
 
       const checkNewPage = (requiredSpace: number = 50) => {
-        if (yPosition + requiredSpace > pageHeight - 30) {
+        if (yPosition + requiredSpace > pageHeight - 35) {
           doc.addPage();
           addHeader();
-          yPosition = 40;
+          yPosition = 45;
           return true;
         }
         return false;
       };
 
-      const addSectionHeader = (title: string, color: [number, number, number] = colors.primary) => {
-        checkNewPage(25);
+      const addSectionHeader = (title: string, color: [number, number, number] = colors.primary, subtitle?: string) => {
+        checkNewPage(30);
+        
+        // Modern section header with rounded corners effect
         doc.setFillColor(...color);
-        doc.rect(15, yPosition - 5, pageWidth - 30, 15, 'F');
+        doc.roundedRect(15, yPosition - 5, pageWidth - 30, 18, 2, 2, 'F');
+        
+        // Title
         doc.setTextColor(...colors.white);
-        doc.setFontSize(14);
+        doc.setFontSize(16);
         doc.setFont('helvetica', 'bold');
-        doc.text(title, 20, yPosition + 5);
-        doc.setTextColor(...colors.text);
-        doc.setFont('helvetica', 'normal');
-        yPosition += 20;
+        doc.text(title, 20, yPosition + 7);
+        
+        // Reset colors after title and move past the colored background
+        resetTextFormatting();
+        yPosition += 25;
+        
+        // Subtitle if provided - render AFTER the colored background with proper formatting
+        if (subtitle) {
+          doc.setFontSize(11);
+          doc.setTextColor(...colors.secondary);
+          doc.setFont('helvetica', 'italic');
+          const splitSubtitle = doc.splitTextToSize(subtitle, pageWidth - 40);
+          doc.text(splitSubtitle, 20, yPosition);
+          yPosition += splitSubtitle.length * 5 + 10;
+          
+          // Reset formatting again
+          resetTextFormatting();
+        }
       };
 
-      const addMetricBox = (label: string, value: string, color: [number, number, number], x: number, width: number = 40) => {
-        // Box background
-        doc.setFillColor(...colors.lightGrey);
-        doc.rect(x, yPosition, width, 25, 'F');
+      const addMetricBox = (label: string, value: string, color: [number, number, number], x: number, width: number = 40, height: number = 28) => {
+        // Modern card-style metric box with shadow effect
+        doc.setFillColor(240, 240, 240);
+        doc.roundedRect(x + 1, yPosition + 1, width, height, 3, 3, 'F'); // Shadow
         
-        // Box border
-        doc.setDrawColor(...color);
-        doc.setLineWidth(2);
-        doc.rect(x, yPosition, width, 25, 'S');
+        doc.setFillColor(...colors.white);
+        doc.roundedRect(x, yPosition, width, height, 3, 3, 'F');
         
-        // Value
+        // Colored top border
+        doc.setFillColor(...color);
+        doc.roundedRect(x, yPosition, width, 4, 3, 3, 'F');
+        
+        // Value with enhanced typography
         doc.setTextColor(...color);
-        doc.setFontSize(18);
+        doc.setFontSize(20);
         doc.setFont('helvetica', 'bold');
         const valueWidth = doc.getTextWidth(value);
-        doc.text(value, x + (width - valueWidth) / 2, yPosition + 12);
+        doc.text(value, x + (width - valueWidth) / 2, yPosition + 18);
         
         // Label
         doc.setTextColor(...colors.text);
-        doc.setFontSize(10);
+        doc.setFontSize(9);
         doc.setFont('helvetica', 'normal');
         const labelWidth = doc.getTextWidth(label);
-        doc.text(label, x + (width - labelWidth) / 2, yPosition + 20);
+        doc.text(label, x + (width - labelWidth) / 2, yPosition + 24);
         
+        // Subtle border
+        doc.setDrawColor(220, 220, 220);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(x, yPosition, width, height, 3, 3, 'S');
+        
+        // Reset
         doc.setLineWidth(0.1);
         doc.setDrawColor(0, 0, 0);
       };
@@ -278,94 +532,214 @@ export function generatePDFReport(reports: AnalysisReport[], githubInfo?: { repo
       const totalInfo = reports.reduce((sum, report) => sum + report.summary.infoCount, 0);
       const averageScore = reports.reduce((sum, report) => sum + report.summary.score, 0) / totalFiles;
 
-      // Page 1: Executive Summary
+      // Page 1: Executive Summary with Repository Information
       addHeader();
-      yPosition = 40;
+      yPosition = 50;
 
-      // Executive Summary Section
-      addSectionHeader('Executive Summary', colors.primary);
-      
-      doc.setFontSize(11);
-      const summaryText = `This comprehensive analysis report provides detailed insights into ${totalFiles} GitHub Actions workflow file${totalFiles !== 1 ? 's' : ''} examined for security vulnerabilities, performance optimization opportunities, best practice adherence, dependency management, and structural integrity.`;
-      const splitSummary = doc.splitTextToSize(summaryText, pageWidth - 40);
-      doc.text(splitSummary, 20, yPosition);
-      yPosition += splitSummary.length * 5 + 15;
+      // Repository Information Section (if GitHub repo)
+      if (githubInfo?.repoUrl && githubInfo?.owner && githubInfo?.repo) {
+        addSectionHeader('Repository Analysis Overview', colors.darkBlue, 
+          `Comprehensive workflow security and performance assessment for ${githubInfo.owner}/${githubInfo.repo}`);
+        
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...colors.primary);
+        doc.text(`Repository: ${githubInfo.owner}/${githubInfo.repo}`, 20, yPosition);
+        yPosition += 8;
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...colors.secondary);
+        doc.text(`Source: ${githubInfo.repoUrl}`, 20, yPosition);
+        doc.setTextColor(...colors.text);
+        yPosition += 15;
+        
+        const repoSummaryText = `This analysis provides a comprehensive evaluation of GitHub Actions workflows within the ${githubInfo.repo} repository. Our enterprise-grade scanning engine has examined ${totalFiles} workflow file${totalFiles !== 1 ? 's' : ''} across multiple dimensions including security vulnerabilities, performance bottlenecks, compliance with industry best practices, dependency management strategies, and overall architectural integrity.`;
+        
+        // Ensure text color is set correctly for summary
+        resetTextFormatting();
+        const splitRepoSummary = doc.splitTextToSize(repoSummaryText, pageWidth - 40);
+        doc.text(splitRepoSummary, 20, yPosition);
+        yPosition += splitRepoSummary.length * 5 + 20;
+      } else {
+        addSectionHeader('Workflow Analysis Overview', colors.darkBlue, 
+          `Enterprise-grade analysis of uploaded workflow configurations`);
+        
+        const uploadSummaryText = `This comprehensive analysis report provides detailed insights into ${totalFiles} GitHub Actions workflow file${totalFiles !== 1 ? 's' : ''} that have been uploaded for examination. Our advanced analysis engine has conducted a thorough evaluation across multiple critical dimensions including security vulnerabilities, performance optimization opportunities, adherence to industry best practices, dependency management protocols, and structural integrity assessment.`;
+        
+        // Ensure text color is set correctly for summary
+        resetTextFormatting();
+        const splitUploadSummary = doc.splitTextToSize(uploadSummaryText, pageWidth - 40);
+        doc.text(splitUploadSummary, 20, yPosition);
+        yPosition += splitUploadSummary.length * 5 + 20;
+      }
 
-      // Key Metrics Dashboard
-      addSectionHeader('Key Metrics Dashboard', colors.info);
+      // Key Metrics Dashboard with Modern Layout
+      addSectionHeader('Executive Dashboard', colors.info, 'Key performance indicators and risk metrics');
       
-      // First row of metrics
-      addMetricBox('Files Analyzed', totalFiles.toString(), colors.primary, 20, 35);
-      addMetricBox('Total Issues', totalIssues.toString(), colors.warning, 65, 35);
-      addMetricBox('Average Score', `${averageScore.toFixed(1)}/100`, 
-        averageScore >= 80 ? colors.success : averageScore >= 60 ? colors.warning : colors.error, 110, 40);
-      addMetricBox('Critical Errors', totalErrors.toString(), colors.error, 160, 35);
+      // First row of metrics with enhanced spacing
+      addMetricBox('Files Analyzed', totalFiles.toString(), colors.primary, 20, 38, 32);
+      addMetricBox('Total Issues', totalIssues.toString(), colors.warning, 68, 38, 32);
+      addMetricBox('Quality Score', `${averageScore.toFixed(1)}/100`, 
+        averageScore >= 80 ? colors.success : averageScore >= 60 ? colors.warning : colors.error, 116, 42, 32);
+      addMetricBox('Critical Errors', totalErrors.toString(), colors.error, 168, 38, 32);
       
-      yPosition += 35;
+      yPosition += 42;
       
       // Second row of metrics
-      addMetricBox('Warnings', totalWarnings.toString(), colors.warning, 20, 35);
-      addMetricBox('Info Items', totalInfo.toString(), colors.info, 65, 35);
+      addMetricBox('Warnings', totalWarnings.toString(), colors.warning, 20, 38, 32);
+      addMetricBox('Info Items', totalInfo.toString(), colors.info, 68, 38, 32);
       
       const securityIssues = reports.reduce((sum, report) => 
         sum + report.results.filter(r => r.type === 'security').length, 0);
       const performanceIssues = reports.reduce((sum, report) => 
         sum + report.results.filter(r => r.type === 'performance').length, 0);
       
-      addMetricBox('Security Issues', securityIssues.toString(), colors.error, 110, 40);
-      addMetricBox('Performance', performanceIssues.toString(), colors.warning, 160, 35);
+      addMetricBox('Security Issues', securityIssues.toString(), colors.error, 116, 42, 32);
+      addMetricBox('Performance', performanceIssues.toString(), colors.warning, 168, 38, 32);
       
-      yPosition += 50;
+      yPosition += 55;
 
-      // Risk Assessment
-      addSectionHeader('Risk Assessment', colors.error);
+      // Enhanced Risk Assessment with Visual Indicators
+      addSectionHeader('Risk Assessment & Strategic Recommendations', colors.error, 'Comprehensive security and operational risk evaluation');
       
       const riskLevel = totalErrors > 0 ? 'HIGH' : totalWarnings > 5 ? 'MEDIUM' : 'LOW';
       const riskColor = riskLevel === 'HIGH' ? colors.error : riskLevel === 'MEDIUM' ? colors.warning : colors.success;
       
-      doc.setFontSize(12);
-      doc.text('Overall Risk Level:', 20, yPosition);
-      doc.setTextColor(...riskColor);
+      // Risk level indicator with modern styling
+      doc.setFillColor(...riskColor);
+      doc.roundedRect(20, yPosition - 2, 80, 16, 3, 3, 'F');
+      doc.setTextColor(...colors.white);
+      doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
-      doc.text(riskLevel, 80, yPosition);
-      doc.setTextColor(...colors.text);
+      doc.text(`RISK LEVEL: ${riskLevel}`, 25, yPosition + 8);
+      
+      // Risk score calculation - reset formatting first
+      const riskScore = Math.max(0, Math.min(100, (totalErrors * 15 + totalWarnings * 5 + securityIssues * 10)));
+      resetTextFormatting();
+      doc.setFontSize(12);
       doc.setFont('helvetica', 'normal');
-      yPosition += 15;
+      doc.text(`Risk Score: ${riskScore}/100`, 110, yPosition + 8);
+      yPosition += 25;
 
-      const recommendations = [
-        totalErrors > 0 ? '• Immediate attention required for critical security and structural issues' : null,
-        totalWarnings > 5 ? '• Review and address performance and best practice warnings' : null,
-        securityIssues > 0 ? '• Implement security hardening measures for workflow actions' : null,
-        averageScore < 80 ? '• Comprehensive workflow optimization recommended' : null,
-        '• Regular monitoring and analysis of workflow changes recommended'
-      ].filter(Boolean);
+      // Detailed risk analysis
+      const riskAnalysis = [
+        `Security Posture: ${securityIssues === 0 ? 'Strong - No security vulnerabilities detected' : `${securityIssues} security issue${securityIssues !== 1 ? 's' : ''} requiring immediate attention`}`,
+        `Operational Stability: ${totalErrors === 0 ? 'Stable - No critical errors found' : `${totalErrors} critical error${totalErrors !== 1 ? 's' : ''} may impact workflow execution`}`,
+        `Performance Optimization: ${performanceIssues === 0 ? 'Optimized - No performance issues detected' : `${performanceIssues} optimization opportunit${performanceIssues !== 1 ? 'ies' : 'y'} identified`}`,
+        `Compliance Status: ${averageScore >= 80 ? 'Compliant - Workflows follow industry best practices' : 'Non-compliant - Multiple best practice violations detected'}`
+      ];
 
+      // Ensure text color is set correctly for analysis
+      resetTextFormatting();
       doc.setFontSize(10);
-      recommendations.forEach(rec => {
-        if (rec) {
-          const splitRec = doc.splitTextToSize(rec, pageWidth - 40);
-          doc.text(splitRec, 20, yPosition);
-          yPosition += splitRec.length * 5 + 3;
-        }
+      riskAnalysis.forEach(analysis => {
+        const splitAnalysis = doc.splitTextToSize(`• ${analysis}`, pageWidth - 40);
+        doc.text(splitAnalysis, 20, yPosition);
+        yPosition += splitAnalysis.length * 5 + 3;
       });
 
-      // Analysis Methodology
       yPosition += 10;
-      addSectionHeader('Analysis Methodology', colors.secondary);
+
+      // Strategic Recommendations with Priority Levels
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...colors.primary);
+      doc.text('Strategic Recommendations:', 20, yPosition);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...colors.text);
+      yPosition += 10;
+
+      const strategicRecommendations = [
+        { 
+          priority: 'CRITICAL', 
+          text: 'Immediate security remediation required for identified vulnerabilities',
+          show: totalErrors > 0,
+          color: colors.error
+        },
+        { 
+          priority: 'HIGH', 
+          text: 'Implement comprehensive workflow monitoring and alerting systems',
+          show: totalWarnings > 3,
+          color: colors.warning
+        },
+        { 
+          priority: 'MEDIUM', 
+          text: 'Establish regular security audits and compliance reviews',
+          show: securityIssues > 0,
+          color: colors.info
+        },
+        { 
+          priority: 'LOW', 
+          text: 'Optimize workflow performance and resource utilization',
+          show: performanceIssues > 0,
+          color: colors.success
+        }
+      ].filter(rec => rec.show);
+
+      strategicRecommendations.forEach(rec => {
+        doc.setFillColor(...rec.color);
+        doc.roundedRect(20, yPosition - 2, 25, 8, 2, 2, 'F');
+        doc.setTextColor(...colors.white);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
+        doc.text(rec.priority, 22, yPosition + 3);
+        
+        doc.setTextColor(...colors.text);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        const recText = doc.splitTextToSize(rec.text, pageWidth - 60);
+        doc.text(recText, 50, yPosition + 2);
+        yPosition += Math.max(8, recText.length * 5) + 3;
+      });
+
+      if (strategicRecommendations.length === 0) {
+        doc.setFontSize(10);
+        doc.setTextColor(...colors.success);
+        doc.text('✓ All workflows demonstrate excellent security and operational practices', 20, yPosition);
+        yPosition += 10;
+      }
+
+      // Enhanced Analysis Methodology
+      yPosition += 15;
+      addSectionHeader('Analysis Methodology & Standards', colors.secondary, 'Industry-leading assessment framework and compliance standards');
       
-      const methodology = [
-        '• Security Analysis: Scans for hardcoded secrets, permission misconfigurations, and unsafe action usage',
-        '• Performance Review: Identifies caching opportunities, redundant operations, and optimization potential',
-        '• Best Practices: Ensures proper naming conventions, documentation, and error handling',
-        '• Dependency Management: Checks for outdated actions and suggests version pinning strategies',
-        '• Structural Integrity: Validates job dependencies and workflow complexity'
+      const methodologyDetails = [
+        {
+          category: 'Security Analysis Framework',
+          description: 'Advanced threat detection scanning for hardcoded secrets, permission misconfigurations, unsafe action usage, supply chain vulnerabilities, and compliance with OWASP CI/CD security guidelines.'
+        },
+        {
+          category: 'Performance Optimization Assessment',
+          description: 'Comprehensive evaluation of caching strategies, resource utilization, parallel execution opportunities, dependency management, and workflow execution efficiency metrics.'
+        },
+        {
+          category: 'Best Practices Compliance',
+          description: 'Systematic review against industry standards including proper naming conventions, comprehensive documentation, error handling protocols, and maintainability guidelines.'
+        },
+        {
+          category: 'Dependency Management Evaluation',
+          description: 'Analysis of action versioning strategies, security vulnerability assessments, update policies, and supply chain risk management practices.'
+        },
+        {
+          category: 'Structural Integrity Validation',
+          description: 'Assessment of workflow architecture, job dependencies, conditional logic, error propagation, and overall system reliability patterns.'
+        }
       ];
 
       doc.setFontSize(10);
-      methodology.forEach(item => {
-        const splitItem = doc.splitTextToSize(item, pageWidth - 40);
-        doc.text(splitItem, 20, yPosition);
-        yPosition += splitItem.length * 5 + 3;
+      methodologyDetails.forEach(method => {
+        checkNewPage(20);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...colors.primary);
+        doc.text(`${method.category}:`, 20, yPosition);
+        yPosition += 6;
+        
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...colors.text);
+        const splitDesc = doc.splitTextToSize(method.description, pageWidth - 40);
+        doc.text(splitDesc, 20, yPosition);
+        yPosition += splitDesc.length * 5 + 8;
       });
 
       // Keep track of pages for footer
@@ -379,19 +753,20 @@ export function generatePDFReport(reports: AnalysisReport[], githubInfo?: { repo
         currentPage++;
         yPosition = 40;
 
-        // File header
-        addSectionHeader(`File Analysis: ${report.fileName}`, colors.primary);
+        // File header with enhanced styling
+        addSectionHeader(`Detailed Analysis: ${report.fileName}`, colors.primary, 
+          `Comprehensive evaluation of workflow security, performance, and compliance`);
         
-        // File score card
+        // Enhanced file score card with modern metrics
         const scoreColor = report.summary.score >= 80 ? colors.success : 
                           report.summary.score >= 60 ? colors.warning : colors.error;
         
-        addMetricBox('Score', `${report.summary.score}/100`, scoreColor, 20, 40);
-        addMetricBox('Errors', report.summary.errorCount.toString(), colors.error, 70, 30);
-        addMetricBox('Warnings', report.summary.warningCount.toString(), colors.warning, 110, 30);
-        addMetricBox('Info', report.summary.infoCount.toString(), colors.info, 150, 30);
+        addMetricBox('Quality Score', `${report.summary.score}/100`, scoreColor, 20, 45, 32);
+        addMetricBox('Errors', report.summary.errorCount.toString(), colors.error, 75, 32, 32);
+        addMetricBox('Warnings', report.summary.warningCount.toString(), colors.warning, 117, 32, 32);
+        addMetricBox('Info', report.summary.infoCount.toString(), colors.info, 159, 32, 32);
         
-        yPosition += 40;
+        yPosition += 45;
 
         // Issues breakdown by category
         if (report.results.length > 0) {
@@ -421,8 +796,9 @@ export function generatePDFReport(reports: AnalysisReport[], githubInfo?: { repo
               doc.rect(20, yPosition - 3, pageWidth - 40, 12, 'F');
               doc.setTextColor(...colors.white);
               doc.text(`${type.charAt(0).toUpperCase() + type.slice(1).replace('-', ' ')} Issues (${issues.length})`, 25, yPosition + 5);
-              doc.setTextColor(...colors.text);
-              doc.setFont('helvetica', 'normal');
+              
+              // Reset text formatting after colored background
+              resetTextFormatting();
               yPosition += 15;
 
               // Issues list
@@ -548,16 +924,20 @@ export function generatePDFReport(reports: AnalysisReport[], githubInfo?: { repo
           doc.setFontSize(14);
           doc.setFont('helvetica', 'bold');
           doc.text('✓ No Issues Found!', 25, yPosition + 12);
-          doc.setTextColor(...colors.text);
-          doc.setFont('helvetica', 'normal');
+          
+          // Reset text formatting after colored background
+          resetTextFormatting();
           yPosition += 25;
           
           doc.setFontSize(11);
           doc.text('This workflow follows all security, performance, and best practice guidelines.', 25, yPosition);
         }
 
-        addFooter(currentPage, Math.ceil(reports.length) + 2);
+        addFooter(currentPage, Math.ceil(reports.length) + 5); // Updated page count for new pages
       });
+
+      // NEW: Add Generic Best Practices Pages
+      addBestPracticesPages();
 
       // Final page: Summary and next steps
       doc.addPage();
@@ -605,8 +985,8 @@ export function generatePDFReport(reports: AnalysisReport[], githubInfo?: { repo
         doc.setFont('helvetica', 'bold');
         doc.text(item.priority, 22, yPosition + 5);
         
-        // Action item details
-        doc.setTextColor(...colors.text);
+        // Action item details - reset formatting after colored background
+        resetTextFormatting();
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
         doc.text(item.title, 50, yPosition + 5);
@@ -655,9 +1035,9 @@ export function generatePDFReport(reports: AnalysisReport[], githubInfo?: { repo
 
       addFooter(currentPage, currentPage);
 
-      // Generate and return the PDF blob
+      // Generate and return the PDF blob with filename
       const pdfBlob = new Blob([doc.output('blob')], { type: 'application/pdf' });
-      resolve(pdfBlob);
+      resolve({ blob: pdfBlob, filename });
     });
   });
 }
