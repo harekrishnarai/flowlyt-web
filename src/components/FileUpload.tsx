@@ -86,30 +86,30 @@ export default function FileUpload({ onFilesUploaded, uploadedFiles, onRemoveFil
   }, [onFilesUploaded]);
 
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full space-y-4 sm:space-y-6 overflow-hidden">
       {/* Tab Navigation */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+      <div className="border-b border-gray-200 dark:border-gray-700 transition-colors duration-300">
+        <nav className="-mb-px flex space-x-4 sm:space-x-8 overflow-x-auto" aria-label="Tabs">
           <button
             onClick={() => setActiveTab('upload')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+            className={`py-2 px-1 border-b-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap flex-shrink-0 ${
               activeTab === 'upload'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
             }`}
           >
-            <Upload className="w-4 h-4 inline mr-2" />
+            <Upload className="w-3 h-3 sm:w-4 sm:h-4 inline mr-1 sm:mr-2" />
             Upload Files
           </button>
           <button
             onClick={() => setActiveTab('github')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+            className={`py-2 px-1 border-b-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap flex-shrink-0 ${
               activeTab === 'github'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
             }`}
           >
-            <Github className="w-4 h-4 inline mr-2" />
+            <Github className="w-3 h-3 sm:w-4 sm:h-4 inline mr-1 sm:mr-2" />
             From GitHub
           </button>
         </nav>
@@ -121,10 +121,10 @@ export default function FileUpload({ onFilesUploaded, uploadedFiles, onRemoveFil
           {/* Upload Zone */}
           <div
             className={`
-              relative border-2 border-dashed rounded-xl p-8 md:p-12 text-center transition-all duration-200
+              relative border-2 border-dashed rounded-xl p-6 sm:p-8 md:p-12 text-center transition-all duration-200 overflow-hidden
               ${isDragOver 
-                ? 'border-blue-400 bg-blue-50 scale-105' 
-                : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
+                ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 scale-105' 
+                : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800/50'
               }
             `}
             onDrop={handleDrop}
@@ -140,25 +140,25 @@ export default function FileUpload({ onFilesUploaded, uploadedFiles, onRemoveFil
               id="file-upload"
             />
             
-            <div className="flex flex-col items-center space-y-4">
-              <div className={`p-4 rounded-full transition-colors ${isDragOver ? 'bg-blue-100' : 'bg-gray-100'}`}>
-                <Upload className={`w-8 h-8 ${isDragOver ? 'text-blue-600' : 'text-gray-600'}`} />
+            <div className="flex flex-col items-center space-y-3 sm:space-y-4">
+              <div className={`p-3 sm:p-4 rounded-full transition-colors ${isDragOver ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                <Upload className={`w-6 h-6 sm:w-8 sm:h-8 ${isDragOver ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'} transition-colors duration-300`} />
               </div>
               
-              <div className="space-y-2">
-                <h3 className="text-lg font-semibold text-gray-900">
+              <div className="space-y-2 max-w-md mx-auto">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 transition-colors duration-300">
                   Drop your workflow files here
                 </h3>
-                <p className="text-sm text-gray-600 max-w-md mx-auto">
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 transition-colors duration-300 break-words">
                   Upload one or more GitHub Actions workflow files (.yml or .yaml) to analyze for security, performance, and best practices.
                 </p>
               </div>
               
               <label 
                 htmlFor="file-upload"
-                className="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors cursor-pointer touch-manipulation min-h-[44px]"
+                className="inline-flex items-center px-4 sm:px-6 py-2 sm:py-3 bg-blue-600 dark:bg-blue-700 text-white text-sm sm:text-base font-medium rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors cursor-pointer touch-manipulation min-h-[44px]"
               >
-                <Upload className="w-5 h-5 mr-2" />
+                <Upload className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                 Choose Files
               </label>
             </div>
@@ -170,11 +170,11 @@ export default function FileUpload({ onFilesUploaded, uploadedFiles, onRemoveFil
 
       {/* Error Message */}
       {error && (
-        <div className="flex items-start space-x-3 p-4 bg-red-50 border border-red-200 rounded-lg">
-          <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+        <div className="flex items-start space-x-3 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/30 rounded-lg transition-colors duration-300">
+          <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0 transition-colors duration-300" />
           <div>
-            <h4 className="text-sm font-medium text-red-800">Upload Error</h4>
-            <p className="text-sm text-red-700 mt-1">{error}</p>
+            <h4 className="text-sm font-medium text-red-800 dark:text-red-200 transition-colors duration-300">Upload Error</h4>
+            <p className="text-sm text-red-700 dark:text-red-300 mt-1 transition-colors duration-300">{error}</p>
           </div>
         </div>
       )}
@@ -182,39 +182,39 @@ export default function FileUpload({ onFilesUploaded, uploadedFiles, onRemoveFil
       {/* Uploaded Files */}
       {uploadedFiles.length > 0 && (
         <div className="space-y-3">
-          <h4 className="font-medium text-gray-900">
+          <h4 className="font-medium text-gray-900 dark:text-gray-100 transition-colors duration-300 text-sm sm:text-base">
             {uploadedFiles.some(f => f.source === 'github') ? 'Extracted & Uploaded Files' : 'Uploaded Files'}
           </h4>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {uploadedFiles.map((file) => (
               <div
                 key={file.id}
-                className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+                className="flex items-center justify-between p-3 sm:p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:shadow-md transition-all duration-300"
               >
-                <div className="flex items-center space-x-3 min-w-0 flex-1">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                   <div className="flex-shrink-0">
                     {file.source === 'github' ? (
-                      <Github className="w-5 h-5 text-blue-600" />
+                      <Github className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400 transition-colors duration-300" />
                     ) : (
-                      <FileText className="w-5 h-5 text-blue-600" />
+                      <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400 transition-colors duration-300" />
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-900 truncate">
+                    <p className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100 truncate transition-colors duration-300">
                       {file.name}
                     </p>
-                    <div className="flex items-center space-x-2 text-xs text-gray-500">
+                    <div className="flex flex-col xs:flex-row xs:items-center xs:gap-2 text-xs text-gray-500 dark:text-gray-400 transition-colors duration-300">
                       <span>{(file.content.length / 1024).toFixed(1)} KB</span>
                       {file.source === 'github' && file.repoUrl && (
                         <>
-                          <span>•</span>
+                          <span className="hidden xs:inline">•</span>
                           <a 
                             href={file.repoUrl} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="text-blue-600 hover:text-blue-800 truncate max-w-24"
+                            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 truncate transition-colors duration-300"
                           >
-                            GitHub
+                            GitHub Repo
                           </a>
                         </>
                       )}
@@ -223,7 +223,7 @@ export default function FileUpload({ onFilesUploaded, uploadedFiles, onRemoveFil
                 </div>
                 <button
                   onClick={() => onRemoveFile(file.id)}
-                  className="flex-shrink-0 p-1 text-gray-400 hover:text-red-600 transition-colors touch-manipulation"
+                  className="flex-shrink-0 p-1 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center"
                   aria-label="Remove file"
                 >
                   <X className="w-4 h-4" />

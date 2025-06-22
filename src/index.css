@@ -11,11 +11,27 @@
   
   html {
     scroll-behavior: smooth;
+    overflow-x: hidden;
   }
   
   body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    min-width: 320px;
+  }
+  
+  /* Dark mode scrollbar */
+  .dark ::-webkit-scrollbar-track {
+    background: #374151;
+  }
+  
+  .dark ::-webkit-scrollbar-thumb {
+    background: #6b7280;
+  }
+  
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
   }
 }
 
@@ -29,8 +45,7 @@
   button, a, input, select, textarea {
     transition: all 0.2s ease-in-out;
   }
-  
-  /* Custom scrollbar */
+    /* Custom scrollbar */
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -48,6 +63,19 @@
   
   ::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
+  }
+  
+  /* Dark mode scrollbar */
+  .dark ::-webkit-scrollbar-track {
+    background: #374151;
+  }
+  
+  .dark ::-webkit-scrollbar-thumb {
+    background: #6b7280;
+  }
+  
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
   }
   
   /* Focus styles for accessibility */
@@ -123,6 +151,54 @@
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
+  
+  /* Mobile overflow fixes */
+  .overflow-hidden-mobile {
+    @apply overflow-hidden;
+  }
+  
+  .max-w-mobile {
+    @apply max-w-full;
+  }
+  
+  .break-words-mobile {
+    @apply break-words;
+  }
+  
+  .text-ellipsis-mobile {
+    @apply truncate;
+  }
+  
+  /* Container utilities for mobile */
+  .container-mobile {
+    @apply w-full max-w-full px-4 mx-auto;
+  }
+  
+  /* Responsive text utilities */
+  .text-mobile-sm {
+    @apply text-sm md:text-base;
+  }
+  
+  .text-mobile-base {
+    @apply text-base md:text-lg;
+  }
+  
+  .text-mobile-lg {
+    @apply text-lg md:text-xl;
+  }
+  
+  .text-mobile-xl {
+    @apply text-xl md:text-2xl;
+  }
+  
+  .text-mobile-2xl {
+    @apply text-2xl md:text-3xl;
+  }
+  
+  /* Responsive button utilities */
+  .btn-mobile {
+    @apply px-4 py-2 text-sm md:px-6 md:py-3 md:text-base;
+  }
 }
 
 /* Animation utilities */
@@ -152,6 +228,90 @@
     min-width: 44px;
   }
   
+  /* Prevent horizontal overflow */
+  body {
+    overflow-x: hidden;
+  }
+  
+  /* Responsive containers */
+  .container, .max-w-7xl, .max-w-4xl {
+    max-width: 100%;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  /* Code blocks responsive */
+  pre, code {
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 0.75rem;
+  }
+  
+  /* Tables responsive */
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  
+  /* Long text handling */
+  .truncate-mobile {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  /* Grid adjustments */
+  .grid {
+    overflow-x: hidden;
+  }
+  
+  .grid > * {
+    min-width: 0;
+  }
+  
+  /* Prevent layout shift from long content */
+  img, svg, video {
+    max-width: 100%;
+    height: auto;
+  }
+  
+  /* Text size adjustments for mobile */
+  h1 {
+    font-size: clamp(1.5rem, 5vw, 2.5rem);
+  }
+  
+  h2 {
+    font-size: clamp(1.25rem, 4vw, 2rem);
+  }
+  
+  h3 {
+    font-size: clamp(1rem, 3vw, 1.5rem);
+  }
+  
+  /* Improved spacing for touch */
+  .space-y-4 > * + * {
+    margin-top: 1rem;
+  }
+  
+  .space-x-4 > * + * {
+    margin-left: 1rem;
+  }
+  
+  /* Better button spacing */
+  .btn-group {
+    gap: 0.5rem;
+  }
+  
+  /* Improved form controls */
+  input, select, textarea {
+    font-size: 16px; /* Prevents zoom on iOS */
+    min-height: 44px;
+  }
+}
+  
   /* Reduce motion for users who prefer it */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
@@ -160,8 +320,7 @@
       transition-duration: 0.01ms !important;
     }
   }
-  
-  /* High contrast mode support */
+    /* High contrast mode support */
   @media (prefers-contrast: high) {
     .border-gray-200 {
       border-color: #000000;
@@ -171,4 +330,3 @@
       color: #000000;
     }
   }
-}

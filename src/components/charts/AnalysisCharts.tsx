@@ -110,14 +110,13 @@ export default function AnalysisCharts({ reports }: AnalysisChartsProps) {  // P
       { subject: 'Structure', score: structureScore, fullMark: 100 }
     ];
   }, [reports]);
-
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-          <p className="font-medium">{label}</p>
+        <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg transition-colors duration-300">
+          <p className="font-medium text-gray-900 dark:text-gray-100 transition-colors duration-300">{label}</p>
           {payload.map((entry: any, index: number) => (
-            <p key={index} style={{ color: entry.color }}>
+            <p key={index} style={{ color: entry.color }} className="transition-colors duration-300">
               {entry.name}: {entry.value}
             </p>
           ))}
@@ -149,10 +148,9 @@ export default function AnalysisCharts({ reports }: AnalysisChartsProps) {  // P
       </text>
     );
   };
-
   if (reports.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500">
+      <div className="text-center py-8 text-gray-500 dark:text-gray-400 transition-colors duration-300">
         <p>No data available for charts</p>
       </div>
     );
@@ -161,8 +159,8 @@ export default function AnalysisCharts({ reports }: AnalysisChartsProps) {  // P
   return (
     <div className="space-y-8">
       {/* Overall Health Radar Chart */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h3 className="text-lg font-semibold mb-4 text-gray-900">Workflow Health Overview</h3>
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 transition-colors duration-300">
+        <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100 transition-colors duration-300">Workflow Health Overview</h3>
         <ResponsiveContainer width="100%" height={300}>
           <RadarChart data={radarData}>
             <PolarGrid />
@@ -183,13 +181,11 @@ export default function AnalysisCharts({ reports }: AnalysisChartsProps) {  // P
             <Tooltip content={<CustomTooltip />} />
           </RadarChart>
         </ResponsiveContainer>
-      </div>
-
-      {/* Charts Grid */}
+      </div>      {/* Charts Grid */}
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Severity Distribution Pie Chart */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-4 text-gray-900">Issues by Severity</h3>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 transition-colors duration-300">
+          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100 transition-colors duration-300">Issues by Severity</h3>
           {severityData.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
@@ -212,15 +208,15 @@ export default function AnalysisCharts({ reports }: AnalysisChartsProps) {  // P
               </PieChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-[250px] text-gray-500">
+            <div className="flex items-center justify-center h-[250px] text-gray-500 dark:text-gray-400 transition-colors duration-300">
               No issues found
             </div>
           )}
         </div>
 
         {/* Issue Type Distribution */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-4 text-gray-900">Issues by Type</h3>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 transition-colors duration-300">
+          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100 transition-colors duration-300">Issues by Type</h3>
           {typeData.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
@@ -243,15 +239,15 @@ export default function AnalysisCharts({ reports }: AnalysisChartsProps) {  // P
               </PieChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-[250px] text-gray-500">
+            <div className="flex items-center justify-center h-[250px] text-gray-500 dark:text-gray-400 transition-colors duration-300">
               No issues found
             </div>
           )}
         </div>
 
         {/* File-wise Quality Scores */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-4 text-gray-900">Quality Scores by File</h3>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 transition-colors duration-300">
+          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100 transition-colors duration-300">Quality Scores by File</h3>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={fileData} margin={{ top: 5, right: 30, left: 20, bottom: 60 }}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -262,14 +258,13 @@ export default function AnalysisCharts({ reports }: AnalysisChartsProps) {  // P
                 height={80}
                 fontSize={12}
               />
-              <YAxis domain={[0, 100]} />
-              <Tooltip 
+              <YAxis domain={[0, 100]} />              <Tooltip 
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
                     const data = payload[0].payload;
                     return (
-                      <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-                        <p className="font-medium">{data.fullName}</p>
+                      <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg transition-colors duration-300">
+                        <p className="font-medium text-gray-900 dark:text-gray-100 transition-colors duration-300">{data.fullName}</p>
                         <p style={{ color: '#3B82F6' }}>Score: {data.score}/100</p>
                         <p style={{ color: '#DC2626' }}>Errors: {data.errors}</p>
                         <p style={{ color: '#D97706' }}>Warnings: {data.warnings}</p>
@@ -286,8 +281,8 @@ export default function AnalysisCharts({ reports }: AnalysisChartsProps) {  // P
         </div>
 
         {/* File-wise Issue Breakdown */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-4 text-gray-900">Issues Breakdown by File</h3>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 transition-colors duration-300">
+          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100 transition-colors duration-300">Issues Breakdown by File</h3>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={fileData} margin={{ top: 5, right: 30, left: 20, bottom: 60 }}>
               <CartesianGrid strokeDasharray="3 3" />
