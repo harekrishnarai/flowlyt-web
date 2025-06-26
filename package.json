@@ -9,7 +9,10 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "deploy": "gh-pages -d dist",
+    "update-actions": "node scripts/update-action-database.js",
+    "verify-actions": "node scripts/update-action-database.js --verify",
+    "update-all-actions": "node scripts/update-action-database.js --update-all"
   },
   "dependencies": {
     "@types/d3": "^7.4.3",

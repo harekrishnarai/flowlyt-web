@@ -16,7 +16,10 @@ import {
   FileText,
   RefreshCw,
   BarChart3,
-  Network
+  Network,
+  Copy,
+  GitCommit,
+  ArrowRight
 } from 'lucide-react';
 import { AnalysisReport, WorkflowFile } from '../types/workflow';
 import { generateMarkdownReport, generatePDFReport } from '../utils/workflowAnalyzer';
@@ -42,6 +45,109 @@ const typeConfig = {
   'best-practice': { icon: CheckCircle, color: 'text-green-600', label: 'Best Practice' },
   dependency: { icon: Package, color: 'text-purple-600', label: 'Dependency' },
   structure: { icon: GitBranch, color: 'text-blue-600', label: 'Structure' }
+};
+
+// Helper function to detect SHA-related suggestions
+const isSHASuggestion = (suggestion: string): boolean => {
+  return suggestion.includes('@') && 
+         (suggestion.includes('Pin to SHA:') || 
+          suggestion.includes('Pin to specific') || 
+          suggestion.includes('Update to latest:') ||
+          suggestion.includes('SHA:'));
+};
+
+// Helper function to extract action and SHA from suggestion
+const extractSHAFromSuggestion = (suggestion: string): { actionName: string; sha: string; version?: string } | null => {
+  // Match patterns like "Pin to SHA: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7"
+  const shaMatch = suggestion.match(/(\w+\/[\w-]+)@([a-f0-9]{40})(?:\s*#\s*([\w\.-]+))?/i);
+  if (shaMatch) {
+    return {
+      actionName: shaMatch[1],
+      sha: shaMatch[2],
+      version: shaMatch[3]
+    };
+  }
+  return null;
+};
+
+// SHA Suggestion Component
+const SHASuggestionBox = ({ suggestion }: { suggestion: string }) => {
+  const [copied, setCopied] = useState(false);
+  const shaInfo = extractSHAFromSuggestion(suggestion);
+  
+  const handleCopy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  if (!shaInfo) {
+    return (
+      <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 transition-colors duration-300 break-words">
+        {suggestion}
+      </p>
+    );
+  }
+
+  const fullActionReference = `${shaInfo.actionName}@${shaInfo.sha}`;
+  
+  return (
+    <div className="space-y-3">
+      <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 transition-colors duration-300">
+        {suggestion.split(fullActionReference)[0]}
+      </p>
+      
+      {/* Beautiful SHA display box */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-800/50 rounded-lg p-3 sm:p-4 transition-all duration-300">
+        <div className="flex items-start gap-3">
+          <div className="flex-shrink-0 mt-0.5">
+            <GitCommit className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          </div>
+          
+          <div className="flex-1 min-w-0 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-blue-900 dark:text-blue-100">
+                Recommended Action:
+              </span>
+              {shaInfo.version && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200">
+                  {shaInfo.version}
+                </span>
+              )}
+            </div>
+            
+            <div className="relative group">
+              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md px-3 py-2 font-mono text-xs sm:text-sm text-gray-900 dark:text-gray-100 transition-colors duration-300">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="break-all">{fullActionReference}</span>
+                  <button
+                    onClick={() => handleCopy(fullActionReference)}
+                    className="flex-shrink-0 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors opacity-0 group-hover:opacity-100"
+                    title="Copy to clipboard"
+                  >
+                    {copied ? (
+                      <CheckCircle className="w-3 h-3 text-green-600" />
+                    ) : (
+                      <Copy className="w-3 h-3 text-gray-500" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+              <ArrowRight className="w-3 h-3" />
+              <span>Copy and replace in your workflow file</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default function AnalysisResults({ reports, workflowFiles, onNewAnalysis }: AnalysisResultsProps) {
@@ -424,8 +530,10 @@ export default function AnalysisResults({ reports, workflowFiles, onNewAnalysis 
                         <div className="border-t border-gray-100 dark:border-gray-700 p-3 sm:p-4 space-y-3 sm:space-y-4 transition-colors duration-300">
                           {result.suggestion && (
                             <div>
-                              <h4 className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100 mb-2 transition-colors duration-300">Suggestion</h4>
-                              <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 transition-colors duration-300 break-words">{result.suggestion}</p>
+                              <h4 className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100 mb-2 transition-colors duration-300">
+                                {isSHASuggestion(result.suggestion) ? 'SHA Pinning Recommendation' : 'Suggestion'}
+                              </h4>
+                              <SHASuggestionBox suggestion={result.suggestion} />
                             </div>
                           )}
 

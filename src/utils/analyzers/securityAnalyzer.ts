@@ -1,6 +1,7 @@
 import { WorkflowData, AnalysisResult } from '../../types/workflow';
 import { findLineNumber, findStepLineNumber, extractCodeSnippet, extractStepSnippet } from '../yamlParser';
 import { GitHubAnalysisContext } from '../workflowAnalyzer';
+import { getSHARecommendation, isActionInDatabase, isVersionOutdated } from '../actionHashDatabase';
 
 // Helper function to create GitHub permalink for specific line
 function createGitHubLink(githubContext: GitHubAnalysisContext, lineNumber?: number): string | undefined {
@@ -130,7 +131,7 @@ export function analyzeSecurityIssues(
       type: 'security',
       severity: 'warning',
       title: 'Potential sensitive information in logs',
-      description: `Command may expose sensitive information in logs: ${match[0]}`,
+      description: `Command may expose sensitive information in logs: ${match[0]} (${pattern.type})`,
       file: fileName,
       location: { line: lineNumber },
       suggestion: 'Avoid printing sensitive information to logs. Use secure methods for debugging.',
@@ -249,8 +250,14 @@ export function analyzeSecurityIssues(
         const githubLink = createGitHubLink(githubContext, stepLineNumber);
         const codeSnippet = extractStepSnippet(content, jobId, stepIndex);
         
-        // Check for unpinned actions (no version at all)
+        // Enhanced SHA pinning analysis with specific recommendations
         if (!step.uses.includes('@')) {
+          // No version specified at all
+          const recommendation = getSHARecommendation(step.uses);
+          const suggestionText = recommendation 
+            ? `Pin to specific version: ${step.uses}@${recommendation.recommendedSHA} (${recommendation.recommendedVersion})`
+            : 'Pin actions to specific versions or SHA hashes for better security';
+
           results.push({
             id: `unpinned-action-${jobId}-${stepIndex}`,
             type: 'security',
@@ -259,25 +266,50 @@ export function analyzeSecurityIssues(
             description: `Step uses '${step.uses}' without any version specification`,
             file: fileName,
             location: { job: jobId, step: stepIndex, line: stepLineNumber },
-            suggestion: 'Pin actions to specific versions or SHA hashes for better security',
+            suggestion: suggestionText,
             links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
             githubUrl: githubLink,
             codeSnippet: codeSnippet || undefined
           });
         } else {
-          // Check for version pinning vs SHA pinning
+          // Version is specified, analyze pinning strategy
           const [actionName, version] = step.uses.split('@');
           
           // Check if it's using a SHA (40 character hex string)
           const isSHA = /^[a-f0-9]{40}$/i.test(version);
           
-          // Check if it's using a tag/branch instead of SHA
-          if (!isSHA && version) {
-            // Allow official GitHub actions to use semantic versions, but warn about others
+          if (isSHA) {
+            // Already using SHA - check if it's current
+            if (isActionInDatabase(actionName)) {
+              const recommendation = getSHARecommendation(actionName, version);
+              if (recommendation && recommendation.isUpgrade) {
+                results.push({
+                  id: `outdated-sha-${jobId}-${stepIndex}`,
+                  type: 'security',
+                  severity: 'info',
+                  title: 'Consider updating to latest SHA',
+                  description: `Action '${step.uses}' uses an older SHA. Consider updating to latest stable version`,
+                  file: fileName,
+                  location: { job: jobId, step: stepIndex, line: stepLineNumber },
+                  suggestion: `Update to latest: ${actionName}@${recommendation.recommendedSHA} (${recommendation.recommendedVersion})`,
+                  links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
+                  githubUrl: githubLink,
+                  codeSnippet: codeSnippet || undefined
+                });
+              }
+            }
+          } else {
+            // Not using SHA - provide specific recommendations
             const actionOwner = actionName.split('/')[0];
             const isOfficialGitHubAction = ['actions', 'github'].includes(actionOwner);
+            const recommendation = getSHARecommendation(actionName, version);
             
             if (!isOfficialGitHubAction) {
+              // Third-party action should use SHA
+              const suggestionText = recommendation 
+                ? `Pin to SHA: ${actionName}@${recommendation.recommendedSHA} # ${recommendation.recommendedVersion}`
+                : `Pin to specific SHA commit instead of '${version}'`;
+
               results.push({
                 id: `non-sha-pinned-${jobId}-${stepIndex}`,
                 type: 'security',
@@ -286,13 +318,17 @@ export function analyzeSecurityIssues(
                 description: `Third-party action '${step.uses}' is pinned to '${version}' instead of a SHA commit`,
                 file: fileName,
                 location: { job: jobId, step: stepIndex, line: stepLineNumber },
-                suggestion: 'For maximum security, pin third-party actions to specific SHA commits instead of tags or branches',
+                suggestion: suggestionText,
                 links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-third-party-actions'],
                 githubUrl: githubLink,
                 codeSnippet: codeSnippet || undefined
               });
             } else if (version.startsWith('v') && version.includes('.')) {
-              // Official actions using semantic versioning - this is acceptable but inform about SHA option
+              // Official actions - suggest SHA for maximum security
+              const suggestionText = recommendation 
+                ? `For maximum security, pin to SHA: ${actionName}@${recommendation.recommendedSHA} # ${recommendation.recommendedVersion}`
+                : 'Consider SHA pinning for maximum security';
+
               results.push({
                 id: `semantic-version-${jobId}-${stepIndex}`,
                 type: 'security',
@@ -301,11 +337,31 @@ export function analyzeSecurityIssues(
                 description: `Official action '${step.uses}' uses semantic versioning. Consider SHA pinning for maximum security`,
                 file: fileName,
                 location: { job: jobId, step: stepIndex, line: stepLineNumber },
-                suggestion: 'While semantic versioning is acceptable for official actions, SHA pinning provides the highest security guarantee',
+                suggestion: suggestionText,
                 links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-third-party-actions'],
                 githubUrl: githubLink,
                 codeSnippet: codeSnippet || undefined
               });
+            }
+
+            // Check for outdated versions
+            if (isActionInDatabase(actionName) && isVersionOutdated(actionName, version)) {
+              const latestRecommendation = getSHARecommendation(actionName);
+              if (latestRecommendation) {
+                results.push({
+                  id: `outdated-version-${jobId}-${stepIndex}`,
+                  type: 'security',
+                  severity: 'warning',
+                  title: 'Outdated action version',
+                  description: `Action '${step.uses}' is using an outdated version`,
+                  file: fileName,
+                  location: { job: jobId, step: stepIndex, line: stepLineNumber },
+                  suggestion: `Update to latest: ${actionName}@${latestRecommendation.recommendedSHA} # ${latestRecommendation.recommendedVersion}`,
+                  links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
+                  githubUrl: githubLink,
+                  codeSnippet: codeSnippet || undefined
+                });
+              }
             }
           }
         }

@@ -1,0 +1,130 @@
+name: 🔄 Update Action Database
+
+on:
+  # Run weekly on Sundays at 2 AM UTC
+  schedule:
+    - cron: '0 2 * * 0'
+  
+  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      update_type:
+        description: 'Update type'
+        required: true
+        default: 'verify'
+        type: choice
+        options:
+          - verify
+          - single
+          - all
+      action_name:
+        description: 'Action name (for single update)'
+        required: false
+        default: 'actions/checkout'
+
+jobs:
+  update-database:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+      - name: 🔄 Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+      
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: 📥 Install dependencies
+        run: npm ci
+      
+      - name: 🔍 Verify database (scheduled)
+        if: github.event_name == 'schedule'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run verify-actions
+      
+      - name: 🔍 Verify database (manual)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.update_type == 'verify'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run verify-actions
+      
+      - name: 📝 Update single action
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.update_type == 'single'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run update-actions -- --action="${{ github.event.inputs.action_name }}"
+      
+      - name: 🚀 Update all actions
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.update_type == 'all'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run update-all-actions
+      
+      - name: 📊 Check for changes
+        id: git-check
+        run: |
+          if git diff --quiet HEAD~1; then
+            echo "changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "changes=true" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: 📝 Create Pull Request
+        if: steps.git-check.outputs.changes == 'true'
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6.1.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: |
+            🔄 Update action database
+            
+            - Updated SHA hashes for GitHub Actions
+            - Automated update via workflow
+            - Date: ${{ github.run_started_at }}
+          title: '🔄 Automated Action Database Update'
+          body: |
+            ## 🔄 Action Database Update
+            
+            This PR contains automated updates to the GitHub Actions database.
+            
+            ### 📊 Changes
+            - Updated SHA hashes for popular GitHub Actions
+            - Added new versions and security fixes
+            - Maintained backward compatibility
+            
+            ### 🔍 Verification
+            All updates have been verified against the GitHub API.
+            
+            ### 🎯 Next Steps
+            - Review the changes
+            - Merge if everything looks correct
+            - The updated database will provide more current SHA recommendations
+            
+            ---
+            🤖 This PR was created automatically by the update workflow.
+          branch: automated/update-action-database
+          delete-branch: true
+          draft: false
+      
+      - name: 📈 Summary
+        run: |
+          echo "## 📊 Action Database Update Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Type**: ${{ github.event.inputs.update_type || 'scheduled verification' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Time**: $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Changes**: ${{ steps.git-check.outputs.changes }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ steps.git-check.outputs.changes }}" == "true" ]]; then
+            echo "- **Status**: ✅ Updates applied - PR created" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **Status**: ℹ️ No updates needed - database current" >> $GITHUB_STEP_SUMMARY
+          fi
