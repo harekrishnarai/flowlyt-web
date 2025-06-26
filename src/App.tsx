@@ -125,9 +125,9 @@ function App() {
 
   return (
     <ThemeProvider>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-blue-900 dark:to-indigo-900 transition-colors duration-300 overflow-x-hidden">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-purple-900 dark:to-rose-900 transition-colors duration-300 overflow-x-hidden">
         {/* Header */}
-        <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-white/20 dark:border-gray-700/20 sticky top-0 z-50 transition-colors duration-300">
+        <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-b border-white/20 dark:border-purple-800/20 sticky top-0 z-50 transition-colors duration-300">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
               <div className="flex items-center space-x-3 min-w-0 flex-1">
@@ -226,7 +226,7 @@ function App() {
                   ].map((feature, index) => (
                     <div
                       key={index}
-                      className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm border border-white/20 dark:border-gray-700/20 rounded-xl p-4 sm:p-6 hover:bg-white/80 dark:hover:bg-gray-800/80 transition-all duration-200 hover:scale-105"
+                      className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-white/20 dark:border-purple-700/20 rounded-xl p-4 sm:p-6 hover:bg-white/80 dark:hover:bg-slate-800/80 transition-all duration-200 hover:scale-105"
                     >
                       <div className="text-xl sm:text-2xl mb-2 sm:mb-3">{feature.icon}</div>
                       <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2 transition-colors duration-300 text-sm sm:text-base">{feature.title}</h3>
@@ -237,7 +237,7 @@ function App() {
               </div>
 
               {/* Upload Section */}
-              <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm border border-white/20 dark:border-gray-700/20 rounded-2xl p-4 sm:p-6 lg:p-8 transition-all duration-300 mx-2 sm:mx-0">
+              <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-white/20 dark:border-purple-700/20 rounded-2xl p-4 sm:p-6 lg:p-8 transition-all duration-300 mx-2 sm:mx-0">
                 <FileUpload
                   onFilesUploaded={handleFilesUploaded}
                   uploadedFiles={workflowFiles}
@@ -246,8 +246,8 @@ function App() {
                 
                 {isAnalyzing && (
                   <div className="mt-6 text-center">
-                    <div className="inline-flex items-center space-x-2 text-blue-600 dark:text-blue-400 transition-colors duration-300">
-                      <div className="animate-spin rounded-full h-4 w-4 sm:h-5 sm:w-5 border-2 border-blue-600 dark:border-blue-400 border-t-transparent"></div>
+                    <div className="inline-flex items-center space-x-2 text-blue-600 dark:text-purple-400 transition-colors duration-300">
+                      <div className="animate-spin rounded-full h-4 w-4 sm:h-5 sm:w-5 border-2 border-blue-600 dark:border-purple-400 border-t-transparent"></div>
                       <span className="font-medium text-sm sm:text-base">
                         {analysisProgress.total > 0 
                           ? `Analyzing workflows... (${analysisProgress.current}/${analysisProgress.total})`
@@ -257,9 +257,9 @@ function App() {
                     </div>
                     {analysisProgress.total > 0 && (
                       <div className="mt-3 w-full max-w-md mx-auto px-4 sm:px-0">
-                        <div className="bg-gray-200 dark:bg-gray-700 rounded-full h-2 transition-colors duration-300">
+                        <div className="bg-gray-200 dark:bg-slate-700 rounded-full h-2 transition-colors duration-300">
                           <div 
-                            className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300"
+                            className="bg-blue-600 dark:bg-purple-400 h-2 rounded-full transition-all duration-300"
                             style={{ width: `${(analysisProgress.current / analysisProgress.total) * 100}%` }}
                           ></div>
                         </div>
@@ -270,7 +270,7 @@ function App() {
               </div>
             </div>
           ) : (
-            <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm border border-white/20 dark:border-gray-700/20 rounded-2xl p-4 sm:p-6 lg:p-8 transition-all duration-300 mx-2 sm:mx-0">
+            <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-white/20 dark:border-purple-700/20 rounded-2xl p-4 sm:p-6 lg:p-8 transition-all duration-300 mx-2 sm:mx-0">
               <AnalysisResults
                 reports={analysisReports}
                 workflowFiles={workflowFiles}
@@ -282,7 +282,7 @@ function App() {
         </main>
 
       {/* Footer */}
-      <footer className="mt-8 sm:mt-16 py-6 sm:py-8 border-t border-white/20 dark:border-gray-700/20 transition-colors duration-300">
+      <footer className="mt-8 sm:mt-16 py-6 sm:py-8 border-t border-white/20 dark:border-purple-800/20 transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center text-xs sm:text-sm text-gray-600 dark:text-gray-400 transition-colors duration-300">
             <p className="px-4">
