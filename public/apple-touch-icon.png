@@ -1,0 +1,19 @@
+<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8B5CF6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="180" height="180" rx="40" fill="url(#gradient)"/>
+  
+  <!-- Git Branch Icon -->
+  <g transform="translate(60, 60)" fill="white">
+    <path d="M30 15C26.134 15 23 18.134 23 22s3.134 7 7 7c2.569 0 4.82-1.407 6.027-3.504L38 26.562V37.938A7.007 7.007 0 0 0 30 44c0 3.866 3.134 7 7 7s7-3.134 7-7c0-2.569-1.407-4.82-3.504-6.027L42 36.312V26.562l.973.934C44.18 29.593 46.431 31 49 31c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7c0 .2.025.392.043.585L42 24.071V22c0-3.866-3.134-7-7-7z"/>
+    <circle cx="30" cy="22" r="4.5" fill="white"/>
+    <circle cx="49" cy="24" r="4.5" fill="white"/>
+    <circle cx="30" cy="44" r="4.5" fill="white"/>
+  </g>
+</svg>

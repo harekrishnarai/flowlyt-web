@@ -1,0 +1,69 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f172a;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#7c3aed;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#e11d48;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8B5CF6;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="textGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#60a5fa;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#a78bfa;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bgGradient)"/>
+  
+  <!-- Decorative circles -->
+  <circle cx="100" cy="100" r="50" fill="rgba(59, 130, 246, 0.1)"/>
+  <circle cx="1100" cy="530" r="80" fill="rgba(139, 92, 246, 0.1)"/>
+  <circle cx="900" cy="100" r="30" fill="rgba(225, 29, 72, 0.15)"/>
+  
+  <!-- Logo -->
+  <g transform="translate(100, 200)">
+    <rect x="0" y="0" width="120" height="120" rx="24" fill="url(#logoGradient)"/>
+    <g transform="translate(30, 30)" fill="white">
+      <path d="M30 15C26.134 15 23 18.134 23 22s3.134 7 7 7c2.569 0 4.82-1.407 6.027-3.504L38 26.562V37.938A7.007 7.007 0 0 0 30 44c0 3.866 3.134 7 7 7s7-3.134 7-7c0-2.569-1.407-4.82-3.504-6.027L42 36.312V26.562l.973.934C44.18 29.593 46.431 31 49 31c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7c0 .2.025.392.043.585L42 24.071V22c0-3.866-3.134-7-7-7z"/>
+      <circle cx="30" cy="22" r="4.5" fill="white"/>
+      <circle cx="49" cy="24" r="4.5" fill="white"/>
+      <circle cx="30" cy="44" r="4.5" fill="white"/>
+    </g>
+  </g>
+  
+  <!-- Main Text -->
+  <text x="280" y="280" font-family="Inter, system-ui, sans-serif" font-size="64" font-weight="bold" fill="white">
+    Flowlyt
+  </text>
+  
+  <!-- Subtitle -->
+  <text x="280" y="330" font-family="Inter, system-ui, sans-serif" font-size="32" font-weight="500" fill="url(#textGradient)">
+    GitHub Actions Workflow Analyzer
+  </text>
+  
+  <!-- Description -->
+  <text x="280" y="380" font-family="Inter, system-ui, sans-serif" font-size="24" font-weight="400" fill="rgba(255, 255, 255, 0.8)">
+    Free security scanning, performance optimization and best practices
+  </text>
+  
+  <!-- Features -->
+  <g transform="translate(280, 420)" fill="rgba(255, 255, 255, 0.9)" font-family="Inter, system-ui, sans-serif" font-size="18">
+    <text x="0" y="0">🔒 Security Analysis</text>
+    <text x="200" y="0">⚡ Performance Check</text>
+    <text x="400" y="0">✅ Best Practices</text>
+    <text x="0" y="30">📦 Dependency Audit</text>
+    <text x="200" y="30">🏗️ Structure Review</text>
+    <text x="400" y="30">📄 PDF Reports</text>
+  </g>
+  
+  <!-- Bottom Badge -->
+  <g transform="translate(280, 520)">
+    <rect x="0" y="0" width="200" height="40" rx="20" fill="rgba(255, 255, 255, 0.1)" stroke="rgba(255, 255, 255, 0.2)"/>
+    <text x="100" y="25" font-family="Inter, system-ui, sans-serif" font-size="16" font-weight="500" fill="white" text-anchor="middle">
+      Free and Client-Side
+    </text>
+  </g>
+</svg>
