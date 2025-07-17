@@ -152,7 +152,7 @@ export function validateGitLabUrl(url: string): { isValid: boolean; error?: stri
   if (!repoInfo) {
     return { 
       isValid: false, 
-      error: 'Invalid GitLab URL format. Use: https://gitlab.com/owner/repo' 
+      error: 'Invalid GitLab URL format. Use: https://gitlab.com/owner/repo or https://gitlab.com/group/subgroup/project' 
     };
   }
 
