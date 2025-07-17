@@ -1,18 +1,19 @@
-# Flowlyt - GitHub Actions Workflow Analyzer
+# Flowlyt - CI/CD Pipeline Analyzer
 
-![Flowlyt Logo](https://img.shields.io/badge/Flowlyt-Enterprise%20Workflow%20Analysis-blue?style=for-the-badge)
+![Flowlyt Logo](https://img.shields.io/badge/Flowlyt-Enterprise%20CI/CD%20Analysis-blue?style=for-the-badge)
 
-An enterprise-grade GitHub Actions workflow analysis tool that provides comprehensive security, performance, and best practice evaluations for CI/CD pipelines.
+An enterprise-grade CI/CD pipeline analysis tool that provides comprehensive security, performance, and best practice evaluations for GitHub Actions workflows and GitLab CI/CD pipelines.
 
 ## 🚀 Features
 
-- **🔒 Advanced SHA Pinning**: Intelligent recommendations with specific commit hashes for 100+ popular actions
+- **🔒 Advanced SHA Pinning**: Intelligent recommendations with specific commit hashes for 100+ popular actions (GitHub Actions)
 - **🛡️ Security Analysis**: Advanced threat detection for hardcoded secrets, permission misconfigurations, and unsafe action usage
 - **⚡ Performance Optimization**: Caching strategies, parallel execution opportunities, and resource utilization analysis
 - **✅ Best Practices Compliance**: Industry standards evaluation including naming conventions and documentation
-- **📦 Smart Dependency Management**: Action versioning strategies with automated update recommendations
+- **📦 Smart Dependency Management**: Action/image versioning strategies with automated update recommendations
 - **📊 Enterprise PDF Reports**: Professional, detailed analysis reports with risk assessments and strategic recommendations
 - **🔄 Automated Database Updates**: Self-maintaining action database with GitHub API integration
+- **🦊 GitLab Support**: Full support for GitLab CI/CD pipelines including custom GitLab instances
 
 ## ⭐ New: SHA Pinning Enhancement
 
@@ -117,8 +118,13 @@ npm run build
 2. Select specific workflow files or analyze all
 3. Generate comprehensive analysis reports
 
-### Upload Workflow Files
-1. Upload `.yml` or `.yaml` workflow files directly
+### Analyze GitLab Repository  
+1. Enter a GitLab repository URL (GitLab.com or custom instance)
+2. Extract GitLab CI/CD pipeline files
+3. Get detailed analysis and recommendations
+
+### Upload CI/CD Files
+1. Upload `.yml`/`.yaml` workflow files or `.gitlab-ci.yml` files directly
 2. Get instant analysis results
 3. Download professional PDF reports
 
@@ -176,4 +182,4 @@ Give a ⭐️ if this project helped you improve your GitHub Actions workflows!
 
 ---
 
-**Flowlyt** - Making CI/CD pipelines more secure, performant, and maintainable.
+**Flowlyt** - Making CI/CD pipelines more secure, performant, and maintainable across GitHub Actions and GitLab CI/CD.
