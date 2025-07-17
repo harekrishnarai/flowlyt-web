@@ -14,28 +14,44 @@ export function parseGitLabUrl(url: string): GitLabRepoInfo | null {
     
     // Handle different GitLab URL formats
     const patterns = [
-      // https://gitlab.com/owner/repo
-      /^https?:\/\/(gitlab\.com)\/([^\/]+)\/([^\/]+)$/,
-      // https://gitlab.com/owner/repo/-/tree/branch
-      /^https?:\/\/(gitlab\.com)\/([^\/]+)\/([^\/]+)\/-\/tree\/(.+)$/,
-      // https://custom-gitlab.com/owner/repo
-      /^https?:\/\/([^\/]+)\/([^\/]+)\/([^\/]+)$/,
-      // https://custom-gitlab.com/owner/repo/-/tree/branch
-      /^https?:\/\/([^\/]+)\/([^\/]+)\/([^\/]+)\/-\/tree\/(.+)$/,
-      // git@gitlab.com:owner/repo.git
-      /^git@(gitlab\.com):([^\/]+)\/(.+)$/,
-      // git@custom-gitlab.com:owner/repo.git
-      /^git@([^:]+):([^\/]+)\/(.+)$/
+      // https://gitlab.com/path/to/project/-/tree/branch (with branch)
+      /^https?:\/\/(gitlab\.com)\/(.+)\/-\/tree\/(.+)$/,
+      // https://custom-gitlab.com/path/to/project/-/tree/branch (with branch)
+      /^https?:\/\/([^\/]+)\/(.+)\/-\/tree\/(.+)$/,
+      // https://gitlab.com/path/to/project (without branch)
+      /^https?:\/\/(gitlab\.com)\/(.+)$/,
+      // https://custom-gitlab.com/path/to/project (without branch)
+      /^https?:\/\/([^\/]+)\/(.+)$/,
+      // git@gitlab.com:path/to/project.git
+      /^git@(gitlab\.com):(.+)$/,
+      // git@custom-gitlab.com:path/to/project.git
+      /^git@([^:]+):(.+)$/
     ];
 
     for (const pattern of patterns) {
       const match = cleanUrl.match(pattern);
       if (match) {
+        const host = match[1];
+        const projectPath = match[2];
+        const branch = match[3] || undefined;
+        
+        // For project path like "kalilinux/build-scripts/kali-arm",
+        // we need to extract owner and repo. The last segment is the repo name,
+        // and everything before it is the owner/group path
+        const pathSegments = projectPath.split('/');
+        const repo = pathSegments[pathSegments.length - 1];
+        const owner = pathSegments.slice(0, -1).join('/');
+        
+        // Handle case where there's only one segment (just repo name without owner)
+        if (pathSegments.length < 2) {
+          return null; // Invalid format, need at least owner/repo
+        }
+        
         return {
-          host: match[1],
-          owner: match[2],
-          repo: match[3],
-          branch: match[4] || undefined
+          host,
+          owner,
+          repo,
+          branch
         };
       }
     }
@@ -52,6 +68,8 @@ export async function fetchGitLabCIFiles(repoInfo: GitLabRepoInfo): Promise<Work
 
   try {
     // Encode the project path for GitLab API
+    // For nested groups like "kalilinux/build-scripts/kali-arm", 
+    // the full path is "kalilinux/build-scripts/kali-arm"
     const projectPath = encodeURIComponent(`${owner}/${repo}`);
     
     // GitLab API endpoint for getting repository tree
