@@ -14,11 +14,11 @@ export function parseGitHubUrl(url: string): GitHubRepoInfo | null {
     // Handle different GitHub URL formats
     const patterns = [
       // https://github.com/owner/repo
-      /^https?:\/\/github\.com\/([^\/]+)\/([^\/]+)$/,
+      /^https?:\/\/github\.com\/([^/]+)\/([^/]+)$/,
       // https://github.com/owner/repo/tree/branch
-      /^https?:\/\/github\.com\/([^\/]+)\/([^\/]+)\/tree\/(.+)$/,
+      /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/tree\/(.+)$/,
       // git@github.com:owner/repo.git
-      /^git@github\.com:([^\/]+)\/(.+)$/
+      /^git@github\.com:([^/]+)\/(.+)$/
     ];
 
     for (const pattern of patterns) {
@@ -33,7 +33,7 @@ export function parseGitHubUrl(url: string): GitHubRepoInfo | null {
     }
 
     return null;
-  } catch (error) {
+  } catch {
     return null;
   }
 }

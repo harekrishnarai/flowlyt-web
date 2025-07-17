@@ -15,17 +15,17 @@ export function parseGitLabUrl(url: string): GitLabRepoInfo | null {
     // Handle different GitLab URL formats
     const patterns = [
       // https://gitlab.com/owner/repo
-      /^https?:\/\/(gitlab\.com)\/([^\/]+)\/([^\/]+)$/,
+      /^https?:\/\/(gitlab\.com)\/([^/]+)\/([^/]+)$/,
       // https://gitlab.com/owner/repo/-/tree/branch
-      /^https?:\/\/(gitlab\.com)\/([^\/]+)\/([^\/]+)\/-\/tree\/(.+)$/,
+      /^https?:\/\/(gitlab\.com)\/([^/]+)\/([^/]+)\/-\/tree\/(.+)$/,
       // https://custom-gitlab.com/owner/repo
-      /^https?:\/\/([^\/]+)\/([^\/]+)\/([^\/]+)$/,
+      /^https?:\/\/([^/]+)\/([^/]+)\/([^/]+)$/,
       // https://custom-gitlab.com/owner/repo/-/tree/branch
-      /^https?:\/\/([^\/]+)\/([^\/]+)\/([^\/]+)\/-\/tree\/(.+)$/,
+      /^https?:\/\/([^/]+)\/([^/]+)\/([^/]+)\/-\/tree\/(.+)$/,
       // git@gitlab.com:owner/repo.git
-      /^git@(gitlab\.com):([^\/]+)\/(.+)$/,
+      /^git@(gitlab\.com):([^/]+)\/(.+)$/,
       // git@custom-gitlab.com:owner/repo.git
-      /^git@([^:]+):([^\/]+)\/(.+)$/
+      /^git@([^:]+):([^/]+)\/(.+)$/
     ];
 
     for (const pattern of patterns) {
@@ -41,7 +41,7 @@ export function parseGitLabUrl(url: string): GitLabRepoInfo | null {
     }
 
     return null;
-  } catch (error) {
+  } catch {
     return null;
   }
 }

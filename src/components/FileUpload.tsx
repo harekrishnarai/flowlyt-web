@@ -48,7 +48,7 @@ export default function FileUpload({ onFilesUploaded, uploadedFiles, onRemoveFil
           source: 'upload'
         };
         validFiles.push(workflowFile);
-      } catch (err) {
+      } catch {
         errors.push(`${file.name}: Failed to read file`);
       }
     }
