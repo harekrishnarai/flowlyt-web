@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
-import { Upload, FileText, X, AlertCircle, Github } from 'lucide-react';
+import { Upload, FileText, X, AlertCircle, GitBranch, Github } from 'lucide-react';
 import { WorkflowFile } from '../types/workflow';
-import GitHubUrlInput from './GitHubUrlInput';
+import RepositoryUrlInput from './RepositoryUrlInput';
 
 interface FileUploadProps {
   onFilesUploaded: (files: WorkflowFile[]) => void;
@@ -12,11 +12,14 @@ interface FileUploadProps {
 export default function FileUpload({ onFilesUploaded, uploadedFiles, onRemoveFile }: FileUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'upload' | 'github'>('upload');
+  const [activeTab, setActiveTab] = useState<'upload' | 'repository'>('upload');
 
   const validateFile = (file: File): string | null => {
-    if (!file.name.match(/\.(yml|yaml)$/i)) {
-      return 'Only YAML files (.yml, .yaml) are supported';
+    const isWorkflowFile = file.name.match(/\.(yml|yaml)$/i);
+    const isGitLabCI = file.name === '.gitlab-ci.yml' || file.name.includes('gitlab-ci');
+    
+    if (!isWorkflowFile && !isGitLabCI) {
+      return 'Only YAML files (.yml, .yaml) or GitLab CI files (.gitlab-ci.yml) are supported';
     }
     if (file.size > 1024 * 1024) { // 1MB limit
       return 'File size must be less than 1MB';
@@ -81,7 +84,7 @@ export default function FileUpload({ onFilesUploaded, uploadedFiles, onRemoveFil
     setIsDragOver(false);
   }, []);
 
-  const handleGitHubFilesExtracted = useCallback((files: WorkflowFile[]) => {
+  const handleRepositoryFilesExtracted = useCallback((files: WorkflowFile[]) => {
     onFilesUploaded(files);
   }, [onFilesUploaded]);
 
@@ -102,15 +105,15 @@ export default function FileUpload({ onFilesUploaded, uploadedFiles, onRemoveFil
             Upload Files
           </button>
           <button
-            onClick={() => setActiveTab('github')}
+            onClick={() => setActiveTab('repository')}
             className={`py-2 px-1 border-b-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap flex-shrink-0 ${
-              activeTab === 'github'
+              activeTab === 'repository'
                 ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                 : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
             }`}
           >
-            <Github className="w-3 h-3 sm:w-4 sm:h-4 inline mr-1 sm:mr-2" />
-            From GitHub
+            <GitBranch className="w-3 h-3 sm:w-4 sm:h-4 inline mr-1 sm:mr-2" />
+            From Repository
           </button>
         </nav>
       </div>
@@ -134,7 +137,7 @@ export default function FileUpload({ onFilesUploaded, uploadedFiles, onRemoveFil
             <input
               type="file"
               multiple
-              accept=".yml,.yaml"
+              accept=".yml,.yaml,.gitlab-ci.yml"
               onChange={handleFileInput}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               id="file-upload"
@@ -147,10 +150,10 @@ export default function FileUpload({ onFilesUploaded, uploadedFiles, onRemoveFil
               
               <div className="space-y-2 max-w-md mx-auto">
                 <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 transition-colors duration-300">
-                  Drop your workflow files here
+                  Drop your CI/CD files here
                 </h3>
                 <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 transition-colors duration-300 break-words">
-                  Upload one or more GitHub Actions workflow files (.yml or .yaml) to analyze for security, performance, and best practices.
+                  Upload GitHub Actions workflows (.yml/.yaml) or GitLab CI files (.gitlab-ci.yml) to analyze for security, performance, and best practices.
                 </p>
               </div>
               
@@ -165,7 +168,7 @@ export default function FileUpload({ onFilesUploaded, uploadedFiles, onRemoveFil
           </div>
         </>
       ) : (
-        <GitHubUrlInput onFilesExtracted={handleGitHubFilesExtracted} />
+        <RepositoryUrlInput onFilesExtracted={handleRepositoryFilesExtracted} />
       )}
 
       {/* Error Message */}
@@ -183,7 +186,7 @@ export default function FileUpload({ onFilesUploaded, uploadedFiles, onRemoveFil
       {uploadedFiles.length > 0 && (
         <div className="space-y-3">
           <h4 className="font-medium text-gray-900 dark:text-gray-100 transition-colors duration-300 text-sm sm:text-base">
-            {uploadedFiles.some(f => f.source === 'github') ? 'Extracted & Uploaded Files' : 'Uploaded Files'}
+            {uploadedFiles.some(f => f.source === 'github' || f.source === 'gitlab') ? 'Extracted & Uploaded Files' : 'Uploaded Files'}
           </h4>
           <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {uploadedFiles.map((file) => (
@@ -195,6 +198,8 @@ export default function FileUpload({ onFilesUploaded, uploadedFiles, onRemoveFil
                   <div className="flex-shrink-0">
                     {file.source === 'github' ? (
                       <Github className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400 transition-colors duration-300" />
+                    ) : file.source === 'gitlab' ? (
+                      <GitBranch className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600 dark:text-orange-400 transition-colors duration-300" />
                     ) : (
                       <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400 transition-colors duration-300" />
                     )}
@@ -215,6 +220,19 @@ export default function FileUpload({ onFilesUploaded, uploadedFiles, onRemoveFil
                             className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 truncate transition-colors duration-300"
                           >
                             GitHub Repo
+                          </a>
+                        </>
+                      )}
+                      {file.source === 'gitlab' && file.repoUrl && (
+                        <>
+                          <span className="hidden xs:inline">•</span>
+                          <a 
+                            href={file.repoUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300 truncate transition-colors duration-300"
+                          >
+                            GitLab Repo
                           </a>
                         </>
                       )}

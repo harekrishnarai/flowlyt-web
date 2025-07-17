@@ -141,7 +141,7 @@ function App() {
                     Flowlyt
                   </h1>
                   <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 hidden sm:block transition-colors duration-300 truncate">
-                    GitHub Actions Workflow Analyzer
+                    CI/CD Pipeline Analyzer
                   </p>
                 </div>
               </div>
@@ -180,12 +180,12 @@ function App() {
                   <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 dark:text-gray-100 mb-4 transition-colors duration-300 px-4">
                     Analyze Your
                     <span className="block bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                      GitHub Actions
+                      CI/CD Pipelines
                     </span>
                   </h1>
                   
                   <p className="text-lg sm:text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed transition-colors duration-300 px-4">
-                    Upload workflow files or extract from GitHub repositories to get comprehensive analysis for security, performance, 
+                    Upload CI/CD files or extract from GitHub/GitLab repositories to get comprehensive analysis for security, performance, 
                     best practices, and more. Everything runs in your browser.
                   </p>
                 </div>
@@ -286,7 +286,7 @@ function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center text-xs sm:text-sm text-gray-600 dark:text-gray-400 transition-colors duration-300">
             <p className="px-4">
-              Built with ❤️ for the GitHub Actions community. 
+              Built with ❤️ for the CI/CD community. 
               <span className="block sm:inline sm:ml-2">All analysis happens in your browser - no data is sent to any server.</span>
             </p>
             <p className="mt-2">

@@ -5,7 +5,7 @@ export interface WorkflowFile {
   parsed?: WorkflowData;
   error?: string;
   lines?: string[];
-  source?: 'upload' | 'github';
+  source?: 'upload' | 'github' | 'gitlab';
   repoUrl?: string;
   filePath?: string;
 }
@@ -83,4 +83,12 @@ export interface GitHubFile {
   path: string;
   download_url: string;
   type: string;
+}
+
+export interface GitLabFile {
+  id: string;
+  name: string;
+  path: string;
+  type: 'blob' | 'tree';
+  mode: string;
 }
