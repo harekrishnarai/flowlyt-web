@@ -17,11 +17,11 @@ export function parseGitLabUrl(url: string): GitLabRepoInfo | null {
       // https://gitlab.com/path/to/project/-/tree/branch (with branch)
       /^https?:\/\/(gitlab\.com)\/(.+)\/-\/tree\/(.+)$/,
       // https://custom-gitlab.com/path/to/project/-/tree/branch (with branch)
-      /^https?:\/\/([^\/]+)\/(.+)\/-\/tree\/(.+)$/,
+      /^https?:\/\/([^/]+)\/(.+)\/-\/tree\/(.+)$/,
       // https://gitlab.com/path/to/project (without branch)
       /^https?:\/\/(gitlab\.com)\/(.+)$/,
       // https://custom-gitlab.com/path/to/project (without branch)
-      /^https?:\/\/([^\/]+)\/(.+)$/,
+      /^https?:\/\/([^/]+)\/(.+)$/,
       // git@gitlab.com:path/to/project.git
       /^git@(gitlab\.com):(.+)$/,
       // git@custom-gitlab.com:path/to/project.git
@@ -58,6 +58,7 @@ export function parseGitLabUrl(url: string): GitLabRepoInfo | null {
 
     return null;
   } catch (error) {
+    console.debug('Error parsing GitLab URL:', error);
     return null;
   }
 }
@@ -67,9 +68,14 @@ export async function fetchGitLabCIFiles(repoInfo: GitLabRepoInfo): Promise<Work
   const workflowFiles: WorkflowFile[] = [];
 
   try {
-    // Try to fetch .gitlab-ci.yml directly using GitLab's raw file URL
+    // Try to fetch GitLab CI files directly using GitLab's raw file URL
     // This works around CORS issues that prevent API access from browsers
-    const possibleFiles = ['.gitlab-ci.yml'];
+    const possibleFiles = [
+      '.gitlab-ci.yml',
+      'gitlab-ci.yml',
+      '.gitlab-ci.yaml', 
+      'gitlab-ci.yaml'
+    ];
     const possibleBranches = [branch === 'main' ? 'main' : branch, 'master', 'develop'];
     
     let foundFiles = false;
@@ -80,6 +86,7 @@ export async function fetchGitLabCIFiles(repoInfo: GitLabRepoInfo): Promise<Work
           // GitLab raw file URL format: https://gitlab.com/owner/repo/-/raw/branch/file
           const rawFileUrl = `https://${host}/${owner}/${repo}/-/raw/${branchName}/${fileName}`;
           
+          console.debug(`Attempting to fetch: ${rawFileUrl}`);
           const response = await fetch(rawFileUrl);
           
           if (response.ok) {
@@ -87,6 +94,7 @@ export async function fetchGitLabCIFiles(repoInfo: GitLabRepoInfo): Promise<Work
             
             // Verify it's actually a YAML file and not an error page
             if (content.trim() && !content.includes('<!DOCTYPE html>') && !content.includes('<html')) {
+              console.debug(`✅ Found CI file: ${fileName} on branch ${branchName}`);
               workflowFiles.push({
                 id: `gitlab-${host}-${owner}-${repo}-${fileName}-${Date.now()}`,
                 name: fileName,
@@ -98,7 +106,11 @@ export async function fetchGitLabCIFiles(repoInfo: GitLabRepoInfo): Promise<Work
               
               foundFiles = true;
               break; // Found the file, no need to try other branches for this file
+            } else {
+              console.debug(`❌ ${fileName} on ${branchName}: Response appears to be HTML (error page)`);
             }
+          } else {
+            console.debug(`❌ ${fileName} on ${branchName}: HTTP ${response.status}`);
           }
         } catch (error) {
           // Continue trying other branches/files
@@ -124,14 +136,23 @@ export async function fetchGitLabCIFiles(repoInfo: GitLabRepoInfo): Promise<Work
         if (response.ok) {
           const files: GitLabFile[] = await response.json();
           
-          // Filter for GitLab CI files
+          // Filter for GitLab CI files - expanded search patterns
           const ciFiles = files.filter(file => 
             file.type === 'blob' && 
             (file.name === '.gitlab-ci.yml' || 
              file.path === '.gitlab-ci.yml' ||
+             file.name === 'gitlab-ci.yml' ||
+             file.path === 'gitlab-ci.yml' ||
+             file.name === '.gitlab-ci.yaml' ||
+             file.path === '.gitlab-ci.yaml' ||
+             file.name === 'gitlab-ci.yaml' ||
+             file.path === 'gitlab-ci.yaml' ||
              file.name.endsWith('.gitlab-ci.yml') ||
+             file.name.endsWith('.gitlab-ci.yaml') ||
              file.path.includes('/.gitlab-ci/') ||
-             (file.path.includes('ci/') && (file.name.endsWith('.yml') || file.name.endsWith('.yaml'))))
+             file.path.includes('/.gitlab/ci/') ||
+             (file.path.includes('ci/') && (file.name.endsWith('.yml') || file.name.endsWith('.yaml'))) ||
+             (file.path.includes('.gitlab/') && (file.name.endsWith('.yml') || file.name.endsWith('.yaml'))))
           );
 
           // Fetch content for each CI file using raw URLs
@@ -165,7 +186,7 @@ export async function fetchGitLabCIFiles(repoInfo: GitLabRepoInfo): Promise<Work
     }
 
     if (!foundFiles || workflowFiles.length === 0) {
-      throw new Error('No GitLab CI files found in the repository. Make sure the repository is public and contains a .gitlab-ci.yml file.');
+      throw new Error('No GitLab CI files found in the repository. Make sure the repository is public and contains a .gitlab-ci.yml, gitlab-ci.yml, .gitlab-ci.yaml, or gitlab-ci.yaml file.');
     }
 
     return workflowFiles;
