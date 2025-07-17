@@ -17,11 +17,11 @@ export function parseGitLabUrl(url: string): GitLabRepoInfo | null {
       // https://gitlab.com/path/to/project/-/tree/branch (with branch)
       /^https?:\/\/(gitlab\.com)\/(.+)\/-\/tree\/(.+)$/,
       // https://custom-gitlab.com/path/to/project/-/tree/branch (with branch)
-      /^https?:\/\/([^\/]+)\/(.+)\/-\/tree\/(.+)$/,
+      /^https?:\/\/([^/]+)\/(.+)\/-\/tree\/(.+)$/,
       // https://gitlab.com/path/to/project (without branch)
       /^https?:\/\/(gitlab\.com)\/(.+)$/,
       // https://custom-gitlab.com/path/to/project (without branch)
-      /^https?:\/\/([^\/]+)\/(.+)$/,
+      /^https?:\/\/([^/]+)\/(.+)$/,
       // git@gitlab.com:path/to/project.git
       /^git@(gitlab\.com):(.+)$/,
       // git@custom-gitlab.com:path/to/project.git
@@ -58,6 +58,7 @@ export function parseGitLabUrl(url: string): GitLabRepoInfo | null {
 
     return null;
   } catch (error) {
+    console.debug('Error parsing GitLab URL:', error);
     return null;
   }
 }
@@ -67,79 +68,133 @@ export async function fetchGitLabCIFiles(repoInfo: GitLabRepoInfo): Promise<Work
   const workflowFiles: WorkflowFile[] = [];
 
   try {
-    // Encode the project path for GitLab API
-    // For nested groups like "kalilinux/build-scripts/kali-arm", 
-    // the full path is "kalilinux/build-scripts/kali-arm"
-    const projectPath = encodeURIComponent(`${owner}/${repo}`);
+    // Try to fetch GitLab CI files directly using GitLab's raw file URL
+    // This works around CORS issues that prevent API access from browsers
+    const possibleFiles = [
+      '.gitlab-ci.yml',
+      'gitlab-ci.yml',
+      '.gitlab-ci.yaml', 
+      'gitlab-ci.yaml'
+    ];
+    const possibleBranches = [branch === 'main' ? 'main' : branch, 'master', 'develop'];
     
-    // GitLab API endpoint for getting repository tree
-    const apiUrl = `https://${host}/api/v4/projects/${projectPath}/repository/tree?ref=${branch}&recursive=true`;
+    let foundFiles = false;
     
-    let response = await fetch(apiUrl);
-    
-    // If main branch doesn't exist, try master
-    if (!response.ok && branch === 'main') {
-      const masterUrl = `https://${host}/api/v4/projects/${projectPath}/repository/tree?ref=master&recursive=true`;
-      response = await fetch(masterUrl);
-    }
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        throw new Error('Repository not found or is private');
-      } else if (response.status === 403) {
-        throw new Error('Repository is private or access denied');
-      } else {
-        throw new Error(`Failed to fetch repository contents: ${response.statusText}`);
-      }
-    }
-
-    const files: GitLabFile[] = await response.json();
-    
-    // Filter for GitLab CI files
-    const ciFiles = files.filter(file => 
-      file.type === 'blob' && 
-      (file.name === '.gitlab-ci.yml' || 
-       file.path === '.gitlab-ci.yml' ||
-       file.name.endsWith('.gitlab-ci.yml') ||
-       file.path.includes('/.gitlab-ci/') ||
-       (file.path.includes('ci/') && (file.name.endsWith('.yml') || file.name.endsWith('.yaml'))))
-    );
-
-    if (ciFiles.length === 0) {
-      throw new Error('No GitLab CI files found in the repository');
-    }
-
-    // Fetch content for each CI file
-    for (const file of ciFiles) {
-      try {
-        const encodedPath = encodeURIComponent(file.path);
-        const fileApiUrl = `https://${host}/api/v4/projects/${projectPath}/repository/files/${encodedPath}/raw?ref=${branch}`;
-        
-        const contentResponse = await fetch(fileApiUrl);
-        if (contentResponse.ok) {
-          const content = await contentResponse.text();
+    for (const fileName of possibleFiles) {
+      for (const branchName of possibleBranches) {
+        try {
+          // GitLab raw file URL format: https://gitlab.com/owner/repo/-/raw/branch/file
+          const rawFileUrl = `https://${host}/${owner}/${repo}/-/raw/${branchName}/${fileName}`;
           
-          workflowFiles.push({
-            id: `gitlab-${host}-${owner}-${repo}-${file.name}-${Date.now()}`,
-            name: file.name,
-            content,
-            source: 'gitlab',
-            repoUrl: `https://${host}/${owner}/${repo}`,
-            filePath: file.path
-          });
+          console.debug(`Attempting to fetch: ${rawFileUrl}`);
+          const response = await fetch(rawFileUrl);
+          
+          if (response.ok) {
+            const content = await response.text();
+            
+            // Verify it's actually a YAML file and not an error page
+            if (content.trim() && !content.includes('<!DOCTYPE html>') && !content.includes('<html')) {
+              console.debug(`✅ Found CI file: ${fileName} on branch ${branchName}`);
+              workflowFiles.push({
+                id: `gitlab-${host}-${owner}-${repo}-${fileName}-${Date.now()}`,
+                name: fileName,
+                content,
+                source: 'gitlab',
+                repoUrl: `https://${host}/${owner}/${repo}`,
+                filePath: fileName
+              });
+              
+              foundFiles = true;
+              break; // Found the file, no need to try other branches for this file
+            } else {
+              console.debug(`❌ ${fileName} on ${branchName}: Response appears to be HTML (error page)`);
+            }
+          } else {
+            console.debug(`❌ ${fileName} on ${branchName}: HTTP ${response.status}`);
+          }
+        } catch (error) {
+          // Continue trying other branches/files
+          console.debug(`Failed to fetch ${fileName} from ${branchName}:`, error);
         }
-      } catch (error) {
-        console.warn(`Failed to fetch content for ${file.name}:`, error);
+      }
+    }
+    
+    if (!foundFiles) {
+      // Fallback: Try the API approach (may work in server environments or with CORS proxy)
+      try {
+        const projectPath = encodeURIComponent(`${owner}/${repo}`);
+        const apiUrl = `https://${host}/api/v4/projects/${projectPath}/repository/tree?ref=${branch}&recursive=true`;
+        
+        let response = await fetch(apiUrl);
+        
+        // If main branch doesn't exist, try master
+        if (!response.ok && branch === 'main') {
+          const masterUrl = `https://${host}/api/v4/projects/${projectPath}/repository/tree?ref=master&recursive=true`;
+          response = await fetch(masterUrl);
+        }
+
+        if (response.ok) {
+          const files: GitLabFile[] = await response.json();
+          
+          // Filter for GitLab CI files - expanded search patterns
+          const ciFiles = files.filter(file => 
+            file.type === 'blob' && 
+            (file.name === '.gitlab-ci.yml' || 
+             file.path === '.gitlab-ci.yml' ||
+             file.name === 'gitlab-ci.yml' ||
+             file.path === 'gitlab-ci.yml' ||
+             file.name === '.gitlab-ci.yaml' ||
+             file.path === '.gitlab-ci.yaml' ||
+             file.name === 'gitlab-ci.yaml' ||
+             file.path === 'gitlab-ci.yaml' ||
+             file.name.endsWith('.gitlab-ci.yml') ||
+             file.name.endsWith('.gitlab-ci.yaml') ||
+             file.path.includes('/.gitlab-ci/') ||
+             file.path.includes('/.gitlab/ci/') ||
+             (file.path.includes('ci/') && (file.name.endsWith('.yml') || file.name.endsWith('.yaml'))) ||
+             (file.path.includes('.gitlab/') && (file.name.endsWith('.yml') || file.name.endsWith('.yaml'))))
+          );
+
+          // Fetch content for each CI file using raw URLs
+          for (const file of ciFiles) {
+            try {
+              const rawFileUrl = `https://${host}/${owner}/${repo}/-/raw/${branch}/${file.path}`;
+              const contentResponse = await fetch(rawFileUrl);
+              
+              if (contentResponse.ok) {
+                const content = await contentResponse.text();
+                
+                workflowFiles.push({
+                  id: `gitlab-${host}-${owner}-${repo}-${file.name}-${Date.now()}`,
+                  name: file.name,
+                  content,
+                  source: 'gitlab',
+                  repoUrl: `https://${host}/${owner}/${repo}`,
+                  filePath: file.path
+                });
+                
+                foundFiles = true;
+              }
+            } catch (error) {
+              console.warn(`Failed to fetch content for ${file.name}:`, error);
+            }
+          }
+        }
+      } catch (apiError) {
+        console.debug('API fallback failed:', apiError);
       }
     }
 
-    if (workflowFiles.length === 0) {
-      throw new Error('Failed to fetch content for any CI files');
+    if (!foundFiles || workflowFiles.length === 0) {
+      throw new Error('No GitLab CI files found in the repository. Make sure the repository is public and contains a .gitlab-ci.yml, gitlab-ci.yml, .gitlab-ci.yaml, or gitlab-ci.yaml file.');
     }
 
     return workflowFiles;
   } catch (error) {
-    throw error instanceof Error ? error : new Error('Unknown error occurred while fetching CI files');
+    if (error instanceof Error && error.message.includes('No GitLab CI files found')) {
+      throw error;
+    }
+    throw new Error('Failed to fetch GitLab CI files. This might be due to the repository being private, not existing, or network restrictions.');
   }
 }
 
@@ -152,7 +207,7 @@ export function validateGitLabUrl(url: string): { isValid: boolean; error?: stri
   if (!repoInfo) {
     return { 
       isValid: false, 
-      error: 'Invalid GitLab URL format. Use: https://gitlab.com/owner/repo' 
+      error: 'Invalid GitLab URL format. Use: https://gitlab.com/owner/repo or https://gitlab.com/group/subgroup/project' 
     };
   }
 
