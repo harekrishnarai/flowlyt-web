@@ -208,7 +208,7 @@ export default function RepositoryUrlInput({ onFilesExtracted }: RepositoryUrlIn
             </div>
           </div>
           <div className="text-xs">
-            <p>Supported formats: https://domain.com/owner/repo, https://domain.com/owner/repo/-/tree/branch</p>
+            <p>Supported formats: https://domain.com/owner/repo, https://domain.com/group/subgroup/project, https://domain.com/owner/repo/-/tree/branch</p>
           </div>
         </div>
       </div>
