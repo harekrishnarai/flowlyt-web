@@ -2,6 +2,11 @@ import { WorkflowData, AnalysisResult } from '../../types/workflow';
 import { findLineNumber, findStepLineNumber, extractCodeSnippet, extractStepSnippet } from '../yamlParser';
 import { GitHubAnalysisContext } from '../workflowAnalyzer';
 import { getSHARecommendation, isActionInDatabase, isVersionOutdated } from '../actionHashDatabase';
+import { 
+  enhanceSecurityAnalysisWithReachability, 
+  SecurityIssueWithReachability, 
+  generateReachabilityInsights 
+} from './reachabilityAnalyzer';
 
 // Helper function to create GitHub permalink for specific line
 function createGitHubLink(githubContext: GitHubAnalysisContext, lineNumber?: number): string | undefined {
@@ -882,4 +887,54 @@ export function analyzeSecurityIssues(
   });
 
   return results;
+}
+
+/**
+ * Enhanced security analysis with reachability analysis to reduce false positives
+ */
+export function analyzeSecurityIssuesWithReachability(
+  workflow: WorkflowData, 
+  fileName: string, 
+  content: string, 
+  githubContext: GitHubAnalysisContext = {}
+): { 
+  results: SecurityIssueWithReachability[]; 
+  reachabilityStats: any; 
+  insights: AnalysisResult[] 
+} {
+  // First, run the standard security analysis
+  const standardResults = analyzeSecurityIssues(workflow, fileName, content, githubContext);
+  
+  // Then enhance with reachability analysis
+  const { enhancedResults, reachabilityStats } = enhanceSecurityAnalysisWithReachability(
+    standardResults,
+    workflow,
+    content
+  );
+  
+  // Generate additional insights from reachability analysis
+  const insights = generateReachabilityInsights(enhancedResults, {
+    triggers: Array.isArray(workflow.on) ? workflow.on : 
+              typeof workflow.on === 'string' ? [workflow.on] : 
+              Object.keys(workflow.on || {}),
+    conditions: new Map(),
+    environmentalFactors: {
+      hasSecrets: content.includes('secrets.') || content.includes('${{ secrets'),
+      hasPrivilegedTrigger: ['workflow_run', 'pull_request_target', 'repository_dispatch'].some(t => 
+        content.includes(t)
+      ),
+      hasExternalActions: Object.values(workflow.jobs).some(job =>
+        job.steps?.some(step => 
+          step.uses && !step.uses.startsWith('actions/') && !step.uses.startsWith('./')
+        )
+      ),
+      hasSelfHosted: content.includes('self-hosted')
+    }
+  });
+  
+  return {
+    results: enhancedResults,
+    reachabilityStats,
+    insights
+  };
 }

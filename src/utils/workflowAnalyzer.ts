@@ -1,9 +1,10 @@
 import { WorkflowFile, AnalysisReport, AnalysisResult } from '../types/workflow';
-import { analyzeSecurityIssues } from './analyzers/securityAnalyzer';
+import { analyzeSecurityIssuesWithReachability } from './analyzers/securityAnalyzer';
 import { analyzePerformanceIssues } from './analyzers/performanceAnalyzer';
 import { analyzeBestPractices } from './analyzers/bestPracticesAnalyzer';
 import { analyzeDependencyIssues } from './analyzers/dependencyAnalyzer';
 import { analyzeStructureIssues } from './analyzers/structureAnalyzer';
+import { analyzeCallGraph, generateCallGraphInsights } from './analyzers/callGraphAnalyzer';
 import { analyzeWorkflowContext, filterResultsByContext, addContextualRecommendations } from './contextAnalyzer';
 
 // GitHub integration info for analyzers
@@ -54,12 +55,31 @@ export function analyzeWorkflow(file: WorkflowFile): AnalysisReport {
   // Analyze workflow context for intelligent filtering
   const context = analyzeWorkflowContext(file.parsed, file.name, file.content);
 
+  // Analyze call graph and dependencies
+  const { results: callGraphResults, callGraphData } = analyzeCallGraph(
+    file.parsed, 
+    file.name, 
+    file.content, 
+    githubContext
+  );
+
+  // Analyze security issues with reachability analysis to reduce false positives
+  const securityAnalysis = analyzeSecurityIssuesWithReachability(
+    file.parsed, 
+    file.name, 
+    file.content, 
+    githubContext
+  );
+
   let results: AnalysisResult[] = [
-    ...analyzeSecurityIssues(file.parsed, file.name, file.content, githubContext),
+    ...securityAnalysis.results, // Use enhanced security results with reachability data
     ...analyzePerformanceIssues(file.parsed, file.name, file.content, githubContext),
     ...analyzeBestPractices(file.parsed, file.name, file.content, githubContext),
     ...analyzeDependencyIssues(file.parsed, file.name, file.content, githubContext),
-    ...analyzeStructureIssues(file.parsed, file.name, file.content, githubContext)
+    ...analyzeStructureIssues(file.parsed, file.name, file.content, githubContext),
+    ...callGraphResults,
+    ...generateCallGraphInsights(callGraphData),
+    ...securityAnalysis.insights // Add reachability insights
   ];
 
   // Apply context-based filtering and adjustments
@@ -97,6 +117,26 @@ export function analyzeWorkflow(file: WorkflowFile): AnalysisReport {
     fileId: file.id,
     fileName: file.name,
     results,
+    callGraphData: {
+      jobDependencies: callGraphData.jobDependencies,
+      actionUsage: callGraphData.actionUsage,
+      criticalPaths: callGraphData.criticalPaths,
+      isolatedJobs: callGraphData.isolatedJobs
+    },
+    reachabilityData: {
+      stats: securityAnalysis.reachabilityStats,
+      executionContext: {
+        triggers: Array.isArray(file.parsed.on) ? file.parsed.on : 
+                  typeof file.parsed.on === 'string' ? [file.parsed.on] : 
+                  Object.keys(file.parsed.on || {}),
+        hasPrivilegedTriggers: ['workflow_run', 'pull_request_target', 'repository_dispatch'].some(t => 
+          file.content.includes(t)
+        ),
+        hasSecrets: file.content.includes('secrets.') || file.content.includes('${{ secrets'),
+        conditionalJobs: Object.values(file.parsed.jobs).filter(job => job.if).length
+      },
+      insights: securityAnalysis.insights
+    },
     summary: {
       totalIssues: results.length,
       errorCount,

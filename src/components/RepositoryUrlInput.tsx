@@ -69,7 +69,14 @@ export default function RepositoryUrlInput({ onFilesExtracted }: RepositoryUrlIn
       if (workflowFiles.length > 0) {
         onFilesExtracted(workflowFiles);
         const fileType = repoType === 'github' ? 'workflow' : 'CI';
-        setSuccess(`Successfully extracted ${workflowFiles.length} ${fileType} file${workflowFiles.length !== 1 ? 's' : ''} from ${repoDisplayName}`);
+        let successMessage = `Successfully extracted ${workflowFiles.length} ${fileType} file${workflowFiles.length !== 1 ? 's' : ''} from ${repoDisplayName}`;
+        
+        // Check if there might be missing files (for GitHub repos)
+        if (repoType === 'github') {
+          successMessage += `. Check browser console for detailed fetching logs`;
+        }
+        
+        setSuccess(successMessage);
         setUrl(''); // Clear the input after successful extraction
       } else {
         const fileType = repoType === 'github' ? 'workflow files' : 'GitLab CI files';

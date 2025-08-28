@@ -19,12 +19,15 @@ import {
   Network,
   Copy,
   GitCommit,
-  ArrowRight
+  ArrowRight,
+  Eye
 } from 'lucide-react';
 import { AnalysisReport, WorkflowFile } from '../types/workflow';
 import { generateMarkdownReport, generatePDFReport } from '../utils/workflowAnalyzer';
 import AnalysisCharts from './charts/AnalysisCharts';
-import WorkflowDependencyGraph from './charts/WorkflowDependencyGraph';
+import CallGraphVisualization from './charts/CallGraphVisualization';
+import { ReachabilityAnalysis } from './charts/ReachabilityAnalysis';
+import NetworkEndpointsView from './charts/NetworkEndpointsView';
 
 interface AnalysisResultsProps {
   reports: AnalysisReport[];
@@ -155,7 +158,7 @@ export default function AnalysisResults({ reports, workflowFiles, onNewAnalysis 
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
   const [selectedSeverities, setSelectedSeverities] = useState<Set<string>>(new Set());
   const [expandedIssues, setExpandedIssues] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState<'list' | 'charts' | 'network'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'charts' | 'network' | 'callgraph' | 'reachability'>('list');
 
   const currentReport = reports.find(r => r.fileId === selectedFile);
 
@@ -350,20 +353,83 @@ export default function AnalysisResults({ reports, workflowFiles, onNewAnalysis 
                 }`}
               >
                 <Network className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                <span className="hidden xs:inline">Network View</span>
+                <span className="hidden xs:inline">Network Endpoints</span>
                 <span className="xs:hidden">Network</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('callgraph')}
+                className={`flex-1 flex items-center justify-center px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
+                  activeTab === 'callgraph'
+                    ? 'bg-blue-500 text-white shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                <GitCommit className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                <span className="hidden xs:inline">Call Graph</span>
+                <span className="xs:hidden">Graph</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('reachability')}
+                className={`flex-1 flex items-center justify-center px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
+                  activeTab === 'reachability'
+                    ? 'bg-blue-500 text-white shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                <Eye className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                <span className="hidden xs:inline">Reachability</span>
+                <span className="xs:hidden">Reach</span>
               </button>
             </div>
           </div>
 
           {/* Content based on active tab */}
-          {activeTab === 'charts' && (
-            <AnalysisCharts reports={reports} />
+          {activeTab === 'charts' && currentReport && (
+            <AnalysisCharts reports={[currentReport]} />
+          )}
+          
+          {activeTab === 'charts' && !currentReport && (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <p>Please select a workflow file to view charts</p>
+            </div>
           )}
 
-          {activeTab === 'network' && (
-            <WorkflowDependencyGraph reports={reports} />
-          )}          {activeTab === 'list' && (
+          {activeTab === 'network' && currentReport && (
+            <NetworkEndpointsView reports={[currentReport]} />
+          )}
+          
+          {activeTab === 'network' && !currentReport && (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <p>Please select a workflow file to view network endpoints</p>
+            </div>
+          )}
+
+          {activeTab === 'callgraph' && currentReport && (
+            <CallGraphVisualization reports={[currentReport]} />
+          )}
+          
+          {activeTab === 'callgraph' && !currentReport && (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <p>Please select a workflow file to view call graph</p>
+            </div>
+          )}
+
+          {activeTab === 'reachability' && currentReport && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Reachability Analysis - {currentReport.fileName}
+              </h3>
+              <ReachabilityAnalysis report={currentReport} />
+            </div>
+          )}
+          
+          {activeTab === 'reachability' && !currentReport && (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <p>Please select a workflow file to view reachability analysis</p>
+            </div>
+          )}
+          
+          {activeTab === 'list' && (
         <div className="grid gap-6 lg:grid-cols-4">
           {/* Sidebar */}
           <div className="lg:col-span-1 space-y-4 sm:space-y-6 order-2 lg:order-1">

@@ -72,33 +72,66 @@ export async function fetchWorkflowFiles(repoInfo: GitHubRepoInfo): Promise<Work
       (file.name.endsWith('.yml') || file.name.endsWith('.yaml'))
     );
 
+    console.log(`Found ${yamlFiles.length} YAML workflow files`);
+
     if (yamlFiles.length === 0) {
       throw new Error('No workflow files found in .github/workflows directory');
     }
 
-    // Fetch content for each workflow file
-    for (const file of yamlFiles) {
+    // Fetch content for each workflow file with limited concurrency
+    console.log(`Found ${yamlFiles.length} YAML workflow files to fetch`);
+    
+    const fetchWithDelay = async (file: GitHubFile, index: number) => {
+      // Add a small delay between requests to be respectful to the API
+      if (index > 0) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
       try {
+        console.log(`Fetching file ${index + 1}/${yamlFiles.length}: ${file.name}`);
         const contentResponse = await fetch(file.download_url);
         if (contentResponse.ok) {
           const content = await contentResponse.text();
+          console.log(`Successfully fetched ${file.name} (${content.length} characters)`);
           
-          workflowFiles.push({
+          return {
             id: `github-${owner}-${repo}-${file.name}-${Date.now()}`,
             name: file.name,
             content,
-            source: 'github',
+            source: 'github' as const,
             repoUrl: `https://github.com/${owner}/${repo}`,
             filePath: file.path
-          });
+          } as WorkflowFile;
+        } else {
+          console.error(`Failed to fetch ${file.name}: ${contentResponse.status} ${contentResponse.statusText}`);
+          return null;
         }
       } catch (error) {
-        console.warn(`Failed to fetch content for ${file.name}:`, error);
+        console.error(`Error fetching content for ${file.name}:`, error);
+        return null;
       }
+    };
+
+    const fetchPromises = yamlFiles.map(fetchWithDelay);
+
+    // Wait for all fetch operations to complete
+    const fetchResults = await Promise.all(fetchPromises);
+    const successfulFiles = fetchResults.filter((result): result is WorkflowFile => result !== null);
+    const failedCount = yamlFiles.length - successfulFiles.length;
+    
+    console.log(`Successfully fetched ${successfulFiles.length} out of ${yamlFiles.length} workflow files`);
+    if (failedCount > 0) {
+      console.warn(`Failed to fetch ${failedCount} workflow files`);
     }
+    
+    successfulFiles.forEach(file => workflowFiles.push(file));
 
     if (workflowFiles.length === 0) {
-      throw new Error('Failed to fetch content for any workflow files');
+      throw new Error(`Failed to fetch content for any of the ${yamlFiles.length} workflow files found`);
+    }
+
+    if (workflowFiles.length < yamlFiles.length) {
+      console.warn(`Only fetched ${workflowFiles.length} out of ${yamlFiles.length} workflow files. Some files may have failed to load.`);
     }
 
     return workflowFiles;

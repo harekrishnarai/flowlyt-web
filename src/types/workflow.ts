@@ -65,10 +65,34 @@ export interface AnalysisResult {
   };
 }
 
+export interface ReachabilityStats {
+  totalIssues: number;
+  reachableIssues: number;
+  highRiskIssues: number;
+  mitigatedIssues: number;
+  falsePositiveReduction?: number; // Percentage of issues reclassified
+}
+
 export interface AnalysisReport {
   fileId: string;
   fileName: string;
   results: AnalysisResult[];
+  callGraphData?: {
+    jobDependencies: Array<{ from: string; to: string; type: string; details?: string }>;
+    actionUsage: Array<{ action: string; version: string; jobId: string; stepIndex: number }>;
+    criticalPaths: string[][];
+    isolatedJobs: string[];
+  };
+  reachabilityData?: {
+    stats: ReachabilityStats;
+    executionContext: {
+      triggers: string[];
+      hasPrivilegedTriggers: boolean;
+      hasSecrets: boolean;
+      conditionalJobs: number;
+    };
+    insights: AnalysisResult[];
+  };
   summary: {
     totalIssues: number;
     errorCount: number;
