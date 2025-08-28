@@ -465,5 +465,421 @@ export function analyzeSecurityIssues(
     }
   });
 
+  // Check for dangerous checkout patterns
+  const dangerousCheckoutPatterns = [
+    /workflow_run|pull_request_target/,
+    /actions\/checkout/
+  ];
+
+  // Check if workflow uses dangerous triggers with checkout
+  const hasDangerousTrigger = dangerousCheckoutPatterns[0].test(content);
+  const hasCheckout = dangerousCheckoutPatterns[1].test(content);
+
+  if (hasDangerousTrigger && hasCheckout) {
+    const triggerLineNumber = findLineNumber(content, dangerousCheckoutPatterns[0].source);
+    const checkoutLineNumber = findLineNumber(content, dangerousCheckoutPatterns[1].source);
+    const githubLink = createGitHubLink(githubContext, triggerLineNumber);
+    const codeSnippet = extractCodeSnippet(content, triggerLineNumber, 3);
+
+    results.push({
+      id: `dangerous-checkout-${Date.now()}`,
+      type: 'security',
+      severity: 'error',
+      title: 'Dangerous checkout with privileged trigger',
+      description: 'Workflow uses workflow_run or pull_request_target trigger with explicit checkout, which can lead to code injection',
+      file: fileName,
+      location: { line: triggerLineNumber },
+      suggestion: 'Avoid explicit checkout with privileged triggers. Use actions/checkout with specific ref or skip checkout entirely.',
+      links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
+      githubUrl: githubLink,
+      codeSnippet: codeSnippet || undefined
+    });
+  }
+
+  // Check for dangerous actions with untrusted artifacts
+  const dangerousActionPatterns = [
+    /actions\/download-artifact/,
+    /actions\/upload-artifact/
+  ];
+
+  dangerousActionPatterns.forEach(pattern => {
+    const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
+    for (const match of matches) {
+      const lineNumber = findLineNumber(content, match[0]);
+      const githubLink = createGitHubLink(githubContext, lineNumber);
+      const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
+
+      results.push({
+        id: `dangerous-action-${Date.now()}-${Math.random()}`,
+        type: 'security',
+        severity: 'warning',
+        title: 'Dangerous artifact action usage',
+        description: `Using '${match[0]}' which can be dangerous with untrusted artifacts from workflow_run triggers`,
+        file: fileName,
+        location: { line: lineNumber },
+        suggestion: 'Validate artifact contents before use. Consider using artifact verification or restricting to trusted sources.',
+        links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
+      });
+    }
+  });
+
+  // Check for dangerous writes to GITHUB_ENV/GITHUB_OUTPUT
+  const dangerousWritePatterns = [
+    /echo.*>>.*GITHUB_ENV/i,
+    /echo.*>>.*GITHUB_OUTPUT/i,
+    /printf.*>>.*GITHUB_ENV/i,
+    /printf.*>>.*GITHUB_OUTPUT/i,
+    /set-output.*name/i, // deprecated but still check
+  ];
+
+  dangerousWritePatterns.forEach(pattern => {
+    const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
+    for (const match of matches) {
+      const lineNumber = findLineNumber(content, match[0]);
+      const githubLink = createGitHubLink(githubContext, lineNumber);
+      const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
+
+      results.push({
+        id: `dangerous-write-${Date.now()}-${Math.random()}`,
+        type: 'security',
+        severity: 'error',
+        title: 'Dangerous environment/output write',
+        description: `Writing to GITHUB_ENV or GITHUB_OUTPUT with potentially user-controlled content: ${match[0]}`,
+        file: fileName,
+        location: { line: lineNumber },
+        suggestion: 'Sanitize user input before writing to environment variables or outputs. Use built-in actions for safer output setting.',
+        links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
+      });
+    }
+  });
+
+  // Check for expression injection vulnerabilities
+  const expressionInjectionPatterns = [
+    /\$\{\{.*github\.event\.issue\.title.*\}\}/i,
+    /\$\{\{.*github\.event\.issue\.body.*\}\}/i,
+    /\$\{\{.*github\.event\.pull_request\.title.*\}\}/i,
+    /\$\{\{.*github\.event\.pull_request\.body.*\}\}/i,
+    /\$\{\{.*github\.event\.comment\.body.*\}\}/i,
+    /\$\{\{.*github\.event\.review\.body.*\}\}/i,
+    /\$\{\{.*github\.event\.pages.*\.page_name.*\}\}/i,
+    /\$\{\{.*github\.event\.commits.*\.message.*\}\}/i,
+    /\$\{\{.*github\.event\.head_commit\.message.*\}\}/i,
+    /\$\{\{.*github\.event\.head_commit\.author\.email.*\}\}/i,
+    /\$\{\{.*github\.event\.head_commit\.author\.name.*\}\}/i,
+    /\$\{\{.*github\.event\.commits.*\.author\.email.*\}\}/i,
+    /\$\{\{.*github\.event\.commits.*\.author\.name.*\}\}/i,
+    /\$\{\{.*github\.event\.pull_request\.head\.ref.*\}\}/i,
+    /\$\{\{.*github\.event\.pull_request\.head\.label.*\}\}/i,
+    /\$\{\{.*github\.event\.pull_request\.head\.repo\.default_branch.*\}\}/i,
+    /\$\{\{.*github\.head_ref.*\}\}/i,
+    /\$\{\{.*env\..*\}\}/i,
+    /\$\{\{.*steps\..*\.outputs\..*\}\}/i,
+    /\$\{\{.*needs\..*\.outputs\..*\}\}/i,
+  ];
+
+  expressionInjectionPatterns.forEach(pattern => {
+    const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
+    for (const match of matches) {
+      // Skip if it's properly sanitized (basic check for quotes or sanitization functions)
+      if (match[0].includes('toJSON') || match[0].includes('fromJSON') || match[0].includes('contains')) {
+        continue;
+      }
+
+      const lineNumber = findLineNumber(content, match[0]);
+      const githubLink = createGitHubLink(githubContext, lineNumber);
+      const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
+
+      results.push({
+        id: `expression-injection-${Date.now()}-${Math.random()}`,
+        type: 'security',
+        severity: 'error',
+        title: 'Potential expression injection',
+        description: `Using user-controlled GitHub context without sanitization: ${match[0]}`,
+        file: fileName,
+        location: { line: lineNumber },
+        suggestion: 'Sanitize user input before using in expressions. Use actions/github-script for safer processing.',
+        links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
+      });
+    }
+  });
+
+  // Check for self-hosted runners (non-ephemeral)
+  const selfHostedRunnerPatterns = [
+    /runs-on:\s*['"]?self-hosted['"]?/i,
+    /runs-on:\s*['"]?[^'"]*-hosted[^'"]*['"]?/i,
+    /runs-on:\s*\[.*self-hosted.*\]/i,
+  ];
+
+  selfHostedRunnerPatterns.forEach(pattern => {
+    const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
+    for (const match of matches) {
+      const lineNumber = findLineNumber(content, match[0]);
+      const githubLink = createGitHubLink(githubContext, lineNumber);
+      const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
+
+      results.push({
+        id: `runner-label-${Date.now()}-${Math.random()}`,
+        type: 'security',
+        severity: 'warning',
+        title: 'Self-hosted runner usage',
+        description: 'Using self-hosted runners which may not be ephemeral and could be backdoored',
+        file: fileName,
+        location: { line: lineNumber },
+        suggestion: 'Ensure self-hosted runners are ephemeral. Use GitHub-hosted runners when possible.',
+        links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
+      });
+    }
+  });
+
+  // Check for unsecure commands (set-env usage)
+  const unsecureCommandPatterns = [
+    /set-env/i,
+    /ACTIONS_ALLOW_UNSECURE_COMMANDS/i,
+  ];
+
+  unsecureCommandPatterns.forEach(pattern => {
+    const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
+    for (const match of matches) {
+      const lineNumber = findLineNumber(content, match[0]);
+      const githubLink = createGitHubLink(githubContext, lineNumber);
+      const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
+
+      results.push({
+        id: `unsecure-commands-${Date.now()}-${Math.random()}`,
+        type: 'security',
+        severity: 'error',
+        title: 'Deprecated unsecure commands',
+        description: `Using deprecated set-env command or ACTIONS_ALLOW_UNSECURE_COMMANDS: ${match[0]}`,
+        file: fileName,
+        location: { line: lineNumber },
+        suggestion: 'Use $GITHUB_ENV and $GITHUB_OUTPUT instead of set-env. Remove ACTIONS_ALLOW_UNSECURE_COMMANDS.',
+        links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
+      });
+    }
+  });
+
+  // Check for bot check bypass patterns
+  const botCheckPatterns = [
+    /if:\s*github\.actor\s*==\s*['"]dependabot\[bot\]['"]/i,
+    /if:\s*github\.actor\s*==\s*['"]dependabot['"]/i,
+  ];
+
+  botCheckPatterns.forEach(pattern => {
+    const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
+    for (const match of matches) {
+      const lineNumber = findLineNumber(content, match[0]);
+      const githubLink = createGitHubLink(githubContext, lineNumber);
+      const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
+
+      results.push({
+        id: `bot-check-${Date.now()}-${Math.random()}`,
+        type: 'security',
+        severity: 'warning',
+        title: 'Dependabot check bypass vulnerability',
+        description: 'Workflow can be bypassed by triggering Dependabot on a forked repository',
+        file: fileName,
+        location: { line: lineNumber },
+        suggestion: 'Use github.event.pull_request.head.repo.full_name to verify the source repository.',
+        links: ['https://www.synacktiv.com/publications/github-actions-exploitation-dependabot'],
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
+      });
+    }
+  });
+
+  // Check for dangerous artifact uploads
+  const dangerousArtifactPatterns = [
+    /actions\/upload-artifact/i,
+    /upload-artifact/i,
+  ];
+
+  dangerousArtifactPatterns.forEach(pattern => {
+    const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
+    for (const match of matches) {
+      const lineNumber = findLineNumber(content, match[0]);
+      const githubLink = createGitHubLink(githubContext, lineNumber);
+      const codeSnippet = extractCodeSnippet(content, lineNumber, 3);
+
+      results.push({
+        id: `dangerous-artefact-${Date.now()}-${Math.random()}`,
+        type: 'security',
+        severity: 'info',
+        title: 'Artifact upload detected',
+        description: 'Uploading artifacts - ensure no sensitive files like .git/config are included',
+        file: fileName,
+        location: { line: lineNumber },
+        suggestion: 'Review artifact contents to ensure no sensitive files are included. Use .gitignore patterns.',
+        links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
+      });
+    }
+  });
+
+  // Check for local action usage
+  const localActionPatterns = [
+    /uses:\s*\.\//i,
+    /uses:\s*\.\./i,
+    /uses:\s*['"]?\.\/[^'"]*['"]?/i,
+  ];
+
+  localActionPatterns.forEach(pattern => {
+    const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
+    for (const match of matches) {
+      const lineNumber = findLineNumber(content, match[0]);
+      const githubLink = createGitHubLink(githubContext, lineNumber);
+      const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
+
+      results.push({
+        id: `local-action-${Date.now()}-${Math.random()}`,
+        type: 'security',
+        severity: 'warning',
+        title: 'Local action usage',
+        description: 'Using local GitHub action which cannot be analyzed for vulnerabilities',
+        file: fileName,
+        location: { line: lineNumber },
+        suggestion: 'Consider using published actions with SHA pinning, or audit local actions thoroughly.',
+        links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
+      });
+    }
+  });
+
+  // Check for OIDC actions
+  const oidcActionPatterns = [
+    /aws-actions\/configure-aws-credentials/i,
+    /azure\/login/i,
+    /google-github-actions\/auth/i,
+    /google-github-actions\/setup-gcloud/i,
+  ];
+
+  oidcActionPatterns.forEach(pattern => {
+    const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
+    for (const match of matches) {
+      const lineNumber = findLineNumber(content, match[0]);
+      const githubLink = createGitHubLink(githubContext, lineNumber);
+      const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
+
+      results.push({
+        id: `oidc-action-${Date.now()}-${Math.random()}`,
+        type: 'security',
+        severity: 'info',
+        title: 'OIDC action detected',
+        description: 'Using OIDC action for cloud provider access - review permissions carefully',
+        file: fileName,
+        location: { line: lineNumber },
+        suggestion: 'Review the permissions granted by this OIDC action and ensure they follow least privilege.',
+        links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
+      });
+    }
+  });
+
+  // Check for credentials in services configuration
+  const credentialsPatterns = [
+    /services:\s*\w+:\s*credentials/i,
+    /services:\s*\w+:\s*auth/i,
+    /services:\s*\w+:\s*token/i,
+  ];
+
+  credentialsPatterns.forEach(pattern => {
+    const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
+    for (const match of matches) {
+      const lineNumber = findLineNumber(content, match[0]);
+      const githubLink = createGitHubLink(githubContext, lineNumber);
+      const codeSnippet = extractCodeSnippet(content, lineNumber, 3);
+
+      results.push({
+        id: `credentials-${Date.now()}-${Math.random()}`,
+        type: 'security',
+        severity: 'warning',
+        title: 'Credentials in services configuration',
+        description: 'Services configuration contains credentials - use secrets instead',
+        file: fileName,
+        location: { line: lineNumber },
+        suggestion: 'Use GitHub secrets for service authentication instead of hardcoding credentials.',
+        links: ['https://docs.github.com/en/actions/security-guides/encrypted-secrets'],
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
+      });
+    }
+  });
+
+  // Check for potential repo-jacking vulnerabilities
+  // For now, flag actions from less common organizations that might be typos
+  const suspiciousOrgs = [
+    /uses:\s*['"]?github\/[^'"]*['"]?/i, // github org (should be actions/github)
+    /uses:\s*['"]?action\/[^'"]*['"]?/i, // action org (should be actions/)
+    /uses:\s*['"]?workflow\/[^'"]*['"]?/i, // workflow org
+  ];
+
+  suspiciousOrgs.forEach(pattern => {
+    const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
+    for (const match of matches) {
+      const lineNumber = findLineNumber(content, match[0]);
+      const githubLink = createGitHubLink(githubContext, lineNumber);
+      const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
+
+      results.push({
+        id: `repo-jacking-${Date.now()}-${Math.random()}`,
+        type: 'security',
+        severity: 'warning',
+        title: 'Potential repo-jacking vulnerability',
+        description: `Action reference may be vulnerable to repo-jacking: ${match[0]}`,
+        file: fileName,
+        location: { line: lineNumber },
+        suggestion: 'Verify the organization/user exists and the action is legitimate. Use SHA pinning for additional security.',
+        links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
+      });
+    }
+  });
+
+  // Check for shell script issues (shellcheck-like)
+  const shellcheckPatterns = [
+    /\$\([^\)]*\)/g, // Unquoted command substitution
+    /rm\s+-[rf]+\s+\*/i, // Dangerous rm commands
+    /chmod\s+777/i, // Overly permissive chmod
+    /sudo\s+.*\|\s*sh/i, // Sudo piped to shell
+    /curl.*\|\s*bash/i, // Curl piped to bash
+    /wget.*\|\s*bash/i, // Wget piped to bash
+  ];
+
+  shellcheckPatterns.forEach(pattern => {
+    const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
+    for (const match of matches) {
+      const lineNumber = findLineNumber(content, match[0]);
+      const githubLink = createGitHubLink(githubContext, lineNumber);
+      const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
+
+      results.push({
+        id: `shellcheck-${Date.now()}-${Math.random()}`,
+        type: 'security',
+        severity: 'warning',
+        title: 'Shell script security issue',
+        description: `Potential shell script vulnerability: ${match[0]}`,
+        file: fileName,
+        location: { line: lineNumber },
+        suggestion: 'Review shell script for security issues. Consider using shellcheck for comprehensive analysis.',
+        links: ['https://www.shellcheck.net/'],
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
+      });
+    }
+  });
+
   return results;
 }
