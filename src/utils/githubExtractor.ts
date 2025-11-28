@@ -38,27 +38,43 @@ export function parseGitHubUrl(url: string): GitHubRepoInfo | null {
   }
 }
 
-export async function fetchWorkflowFiles(repoInfo: GitHubRepoInfo): Promise<WorkflowFile[]> {
+export async function fetchWorkflowFiles(repoInfo: GitHubRepoInfo, token?: string): Promise<WorkflowFile[]> {
   const { owner, repo, branch = 'main' } = repoInfo;
   const workflowFiles: WorkflowFile[] = [];
+
+  // Build headers - include Authorization if token is provided
+  const headers: HeadersInit = {
+    'Accept': 'application/vnd.github.v3+json',
+  };
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+    console.log('Using provided GitHub token for API requests');
+  }
 
   try {
     // First, try to get the workflows directory
     const workflowsUrl = `https://api.github.com/repos/${owner}/${repo}/contents/.github/workflows?ref=${branch}`;
     
-    let response = await fetch(workflowsUrl);
+    let response = await fetch(workflowsUrl, { headers });
     
     // If main branch doesn't exist, try master
     if (!response.ok && branch === 'main') {
       const masterUrl = `https://api.github.com/repos/${owner}/${repo}/contents/.github/workflows?ref=master`;
-      response = await fetch(masterUrl);
+      response = await fetch(masterUrl, { headers });
     }
 
     if (!response.ok) {
       if (response.status === 404) {
-        throw new Error('Repository not found or no workflows directory exists');
+        throw new Error('Repository not found or no workflows directory exists. If this is a private repository, please provide a GitHub token.');
       } else if (response.status === 403) {
-        throw new Error('Repository is private or rate limit exceeded');
+        const rateLimitRemaining = response.headers.get('X-RateLimit-Remaining');
+        if (rateLimitRemaining === '0') {
+          throw new Error('GitHub API rate limit exceeded. Please provide a GitHub token to increase your rate limit (5,000 requests/hour vs 60/hour for unauthenticated).');
+        }
+        throw new Error('Repository is private or access denied. Please provide a GitHub token with repo access.');
+      } else if (response.status === 401) {
+        throw new Error('Invalid GitHub token. Please check your token and try again.');
       } else {
         throw new Error(`Failed to fetch repository contents: ${response.statusText}`);
       }
@@ -89,7 +105,12 @@ export async function fetchWorkflowFiles(repoInfo: GitHubRepoInfo): Promise<Work
       
       try {
         console.log(`Fetching file ${index + 1}/${yamlFiles.length}: ${file.name}`);
-        const contentResponse = await fetch(file.download_url);
+        // Use token for raw content requests if available (for private repos)
+        const contentHeaders: HeadersInit = {};
+        if (token) {
+          contentHeaders['Authorization'] = `Bearer ${token}`;
+        }
+        const contentResponse = await fetch(file.download_url, { headers: contentHeaders });
         if (contentResponse.ok) {
           const content = await contentResponse.text();
           console.log(`Successfully fetched ${file.name} (${content.length} characters)`);
