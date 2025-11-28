@@ -38,18 +38,28 @@ export function parseGitHubUrl(url: string): GitHubRepoInfo | null {
   }
 }
 
-export async function fetchWorkflowFiles(repoInfo: GitHubRepoInfo, token?: string): Promise<WorkflowFile[]> {
-  const { owner, repo, branch = 'main' } = repoInfo;
-  const workflowFiles: WorkflowFile[] = [];
-
-  // Build headers - include Authorization if token is provided
+// Helper function to build headers for GitHub API requests
+function buildGitHubHeaders(token?: string): HeadersInit {
   const headers: HeadersInit = {
     'Accept': 'application/vnd.github.v3+json',
   };
   
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
-    console.log('Using provided GitHub token for API requests');
+  }
+  
+  return headers;
+}
+
+export async function fetchWorkflowFiles(repoInfo: GitHubRepoInfo, token?: string): Promise<WorkflowFile[]> {
+  const { owner, repo, branch = 'main' } = repoInfo;
+  const workflowFiles: WorkflowFile[] = [];
+
+  // Build headers - include Authorization if token is provided
+  const headers = buildGitHubHeaders(token);
+  
+  if (token) {
+    console.log('Using authenticated requests for GitHub API');
   }
 
   try {
@@ -106,10 +116,7 @@ export async function fetchWorkflowFiles(repoInfo: GitHubRepoInfo, token?: strin
       try {
         console.log(`Fetching file ${index + 1}/${yamlFiles.length}: ${file.name}`);
         // Use token for raw content requests if available (for private repos)
-        const contentHeaders: HeadersInit = {};
-        if (token) {
-          contentHeaders['Authorization'] = `Bearer ${token}`;
-        }
+        const contentHeaders = buildGitHubHeaders(token);
         const contentResponse = await fetch(file.download_url, { headers: contentHeaders });
         if (contentResponse.ok) {
           const content = await contentResponse.text();

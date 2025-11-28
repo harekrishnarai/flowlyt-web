@@ -82,6 +82,9 @@ export default function RepositoryUrlInput({ onFilesExtracted }: RepositoryUrlIn
         
         setSuccess(successMessage);
         setUrl(''); // Clear the input after successful extraction
+        // Reset token state after successful extraction
+        setGithubToken('');
+        setShowTokenInput(false);
       } else {
         const fileType = repoType === 'github' ? 'workflow files' : 'GitLab CI files';
         setError(`No ${fileType} found in the repository`);
@@ -94,9 +97,19 @@ export default function RepositoryUrlInput({ onFilesExtracted }: RepositoryUrlIn
   };
 
   const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setUrl(e.target.value);
+    const newUrl = e.target.value;
+    const newType = newUrl ? detectRepositoryType(newUrl) : 'unknown';
+    const currentType = url ? detectRepositoryType(url) : 'unknown';
+    
+    setUrl(newUrl);
     setError(null);
     setSuccess(null);
+    
+    // Reset token state when switching from GitHub to non-GitHub URL
+    if (currentType === 'github' && newType !== 'github') {
+      setGithubToken('');
+      setShowTokenInput(false);
+    }
   };
 
   const detectedType = url ? detectRepositoryType(url) : 'unknown';
