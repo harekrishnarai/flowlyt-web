@@ -31,10 +31,10 @@ on:
 permissions: write-all  # Should be flagged as dangerous
 
 env:
-  # HARDCODED SECRETS - should be detected
-  AWS_ACCESS_KEY_ID: "AKIAIOSFODNN7EXAMPLE"
-  API_KEY: "sk-1234567890abcdefghijklmnop"
-  JWT_TOKEN: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
+  # HARDCODED SECRETS - should be detected (using obviously fake values for testing)
+  AWS_ACCESS_KEY_ID: "AKIAFAKEKEY1234567890"
+  API_KEY: "sk-test-fake-key-not-real"
+  JWT_TOKEN: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0ZXN0IjoiZmFrZSJ9.FAKE_SIGNATURE_FOR_TESTING"
 
 jobs:
   # JOB WITHOUT TIMEOUT - should be detected

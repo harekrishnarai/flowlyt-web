@@ -18,6 +18,12 @@ function createGitHubLink(githubContext: GitHubAnalysisContext, lineNumber?: num
   return `${githubContext.repoUrl}/blob/${branch}/${githubContext.filePath}#L${lineNumber}`;
 }
 
+// Trusted action owners - actions from these organizations are considered more reliable
+const TRUSTED_ACTION_OWNERS = [
+  'actions', 'github', 'docker', 'microsoft', 'azure', 'aws-actions', 
+  'google-github-actions', 'hashicorp', 'codecov', 'sonarqube-quality-gate-action'
+];
+
 export function analyzeSecurityIssues(
   workflow: WorkflowData, 
   fileName: string, 
@@ -537,12 +543,8 @@ export function analyzeSecurityIssues(
         
         // Check for actions from untrusted sources (enhanced detection)
         const actionOwner = step.uses.split('/')[0];
-        const trustedOwners = [
-          'actions', 'github', 'docker', 'microsoft', 'azure', 'aws-actions', 
-          'google-github-actions', 'hashicorp', 'codecov', 'sonarqube-quality-gate-action'
-        ];
         
-        if (!trustedOwners.includes(actionOwner)) {
+        if (!TRUSTED_ACTION_OWNERS.includes(actionOwner)) {
           const severity = step.uses.includes('@') && /^[a-f0-9]{40}$/i.test(step.uses.split('@')[1]) ? 'info' : 'warning';
           
           results.push({
@@ -1131,9 +1133,8 @@ export function analyzeSecurityIssues(
   
   // Check for missing timeout-minutes (can lead to runaway jobs)
   Object.entries(workflow.jobs).forEach(([jobId, job]) => {
-    // Check if job or any step has timeout
-    const hasJobTimeout = content.includes(`${jobId}:`) && 
-                          content.substring(content.indexOf(`${jobId}:`)).split(/^\s{2}\w+:/m)[0].includes('timeout-minutes');
+    // Check if job has timeout-minutes defined
+    const hasJobTimeout = job['timeout-minutes'] !== undefined;
     
     if (!hasJobTimeout && job.steps && job.steps.length > 3) {
       const jobLineNumber = findJobLineNumber(content, jobId);
@@ -1176,13 +1177,12 @@ export function analyzeSecurityIssues(
     job.steps.forEach((step, stepIndex) => {
       if (step.uses && step.with) {
         const actionOwner = step.uses.split('/')[0];
-        const trustedOwners = ['actions', 'github', 'docker', 'microsoft', 'azure', 'aws-actions', 'google-github-actions'];
         
         // Check if token is passed to untrusted action
         const withKeys = Object.keys(step.with);
         const tokenKeys = withKeys.filter(k => k.toLowerCase().includes('token') || k.toLowerCase().includes('github'));
         
-        if (tokenKeys.length > 0 && !trustedOwners.includes(actionOwner)) {
+        if (tokenKeys.length > 0 && !TRUSTED_ACTION_OWNERS.includes(actionOwner)) {
           const stepLineNumber = findStepLineNumber(content, jobId, stepIndex);
           const githubLink = createGitHubLink(githubContext, stepLineNumber);
           const codeSnippet = extractStepSnippet(content, jobId, stepIndex);
@@ -1206,76 +1206,108 @@ export function analyzeSecurityIssues(
   });
   
   // Check for persist-credentials in checkout (security hardening)
-  const checkoutPatterns = content.matchAll(/uses:\s*actions\/checkout@[^\n]+/gi);
-  for (const match of checkoutPatterns) {
-    const lineNumber = findLineNumber(content, match[0]);
-    const checkoutBlock = content.substring(lineNumber).split(/^\s{4,}-\s/m)[0];
+  // Use the parsed workflow to analyze checkout steps
+  Object.entries(workflow.jobs).forEach(([jobId, job]) => {
+    if (!job.steps || !Array.isArray(job.steps)) return;
     
-    if (!checkoutBlock.includes('persist-credentials: false')) {
-      const githubLink = createGitHubLink(githubContext, lineNumber);
-      const codeSnippet = extractCodeSnippet(content, lineNumber, 5);
-      
-      results.push({
-        id: `checkout-persist-credentials-${lineNumber}`,
-        type: 'security',
-        severity: 'info',
-        title: 'Consider disabling persist-credentials in checkout',
-        description: 'The checkout action persists credentials by default. For enhanced security, consider disabling this.',
-        file: fileName,
-        location: { line: lineNumber },
-        suggestion: 'Add "persist-credentials: false" to the checkout step to prevent credential persistence in the repository.',
-        links: ['https://github.com/actions/checkout#usage'],
-        githubUrl: githubLink,
-        codeSnippet: codeSnippet || undefined
-      });
-    }
-  }
+    job.steps.forEach((step, stepIndex) => {
+      if (step.uses && step.uses.includes('actions/checkout')) {
+        const hasPersistCredentialsFalse = step.with?.['persist-credentials'] === false || 
+                                           step.with?.['persist-credentials'] === 'false';
+        
+        if (!hasPersistCredentialsFalse) {
+          const stepLineNumber = findStepLineNumber(content, jobId, stepIndex);
+          const githubLink = createGitHubLink(githubContext, stepLineNumber);
+          const codeSnippet = extractStepSnippet(content, jobId, stepIndex);
+          
+          results.push({
+            id: `checkout-persist-credentials-${jobId}-${stepIndex}`,
+            type: 'security',
+            severity: 'info',
+            title: 'Consider disabling persist-credentials in checkout',
+            description: 'The checkout action persists credentials by default. For enhanced security, consider disabling this.',
+            file: fileName,
+            location: { job: jobId, step: stepIndex, line: stepLineNumber },
+            suggestion: 'Add "persist-credentials: false" to the checkout step to prevent credential persistence in the repository.',
+            links: ['https://github.com/actions/checkout#usage'],
+            githubUrl: githubLink,
+            codeSnippet: codeSnippet || undefined
+          });
+        }
+      }
+    });
+  });
   
   // Check for workflow_call without input validation
-  if (content.includes('workflow_call:')) {
-    const hasInputs = content.includes('inputs:');
-    if (hasInputs && !content.includes('required: true')) {
+  // Only flag if workflow_call is in the 'on' section and has inputs defined
+  const onSection = workflow.on;
+  const hasWorkflowCall = typeof onSection === 'object' && 
+                         onSection !== null && 
+                         'workflow_call' in onSection;
+  
+  if (hasWorkflowCall) {
+    const workflowCallConfig = (onSection as Record<string, unknown>)['workflow_call'];
+    const inputs = typeof workflowCallConfig === 'object' && 
+                  workflowCallConfig !== null && 
+                  'inputs' in (workflowCallConfig as Record<string, unknown>)
+                  ? (workflowCallConfig as Record<string, unknown>)['inputs']
+                  : null;
+    
+    if (inputs && typeof inputs === 'object') {
       const lineNumber = findLineNumber(content, 'workflow_call:');
       results.push({
         id: `workflow-call-validation`,
         type: 'security',
         severity: 'info',
         title: 'Reusable workflow inputs may need validation',
-        description: 'Reusable workflow accepts inputs. Ensure all inputs are properly validated before use.',
+        description: 'Reusable workflow accepts inputs. Ensure all inputs are properly validated before use in run commands.',
         file: fileName,
         location: { line: lineNumber },
-        suggestion: 'Mark required inputs as required: true and validate input values before use in run commands.',
+        suggestion: 'Validate input values before use in run commands to prevent injection attacks.',
         links: ['https://docs.github.com/en/actions/using-workflows/reusing-workflows#using-inputs-and-secrets-in-a-reusable-workflow']
       });
     }
   }
   
   // Check for GitHub script with potentially dangerous code
-  const githubScriptPatterns = [
-    /github-script[\s\S]*?script:\s*\|[\s\S]*?exec/i,
-    /github-script[\s\S]*?script:\s*\|[\s\S]*?child_process/i,
-    /github-script[\s\S]*?script:\s*\|[\s\S]*?require\s*\(/i,
+  // Use parsed workflow to find github-script steps
+  const dangerousScriptPatterns = [
+    { pattern: /\bexec\b/, desc: 'exec' },
+    { pattern: /child_process/, desc: 'child_process' },
+    { pattern: /\brequire\s*\(/, desc: 'require' },
   ];
   
-  githubScriptPatterns.forEach(pattern => {
-    const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
-    for (const match of matches) {
-      const lineNumber = findLineNumber(content, match[0].substring(0, 50));
-      const githubLink = createGitHubLink(githubContext, lineNumber);
-      
-      results.push({
-        id: `github-script-dangerous-${lineNumber}`,
-        type: 'security',
-        severity: 'warning',
-        title: 'Potentially dangerous github-script usage',
-        description: 'The github-script action contains potentially dangerous operations (exec, child_process, require).',
-        file: fileName,
-        location: { line: lineNumber },
-        suggestion: 'Review the script for potential command injection or unsafe operations. Validate all inputs.',
-        links: ['https://github.com/actions/github-script'],
-        githubUrl: githubLink
-      });
-    }
+  Object.entries(workflow.jobs).forEach(([jobId, job]) => {
+    if (!job.steps || !Array.isArray(job.steps)) return;
+    
+    job.steps.forEach((step, stepIndex) => {
+      if (step.uses && step.uses.includes('github-script') && step.with?.script) {
+        const script = String(step.with.script);
+        
+        for (const { pattern, desc } of dangerousScriptPatterns) {
+          if (pattern.test(script)) {
+            const stepLineNumber = findStepLineNumber(content, jobId, stepIndex);
+            const githubLink = createGitHubLink(githubContext, stepLineNumber);
+            const codeSnippet = extractStepSnippet(content, jobId, stepIndex);
+            
+            results.push({
+              id: `github-script-dangerous-${desc}-${jobId}-${stepIndex}`,
+              type: 'security',
+              severity: 'warning',
+              title: 'Potentially dangerous github-script usage',
+              description: `The github-script action contains potentially dangerous operation: ${desc}. Review for security implications.`,
+              file: fileName,
+              location: { job: jobId, step: stepIndex, line: stepLineNumber },
+              suggestion: 'Review the script for potential command injection or unsafe operations. Validate all inputs.',
+              links: ['https://github.com/actions/github-script'],
+              githubUrl: githubLink,
+              codeSnippet: codeSnippet || undefined
+            });
+            break; // Only report once per step
+          }
+        }
+      }
+    });
   });
   
   // Check for job-level permissions that inherit from workflow
