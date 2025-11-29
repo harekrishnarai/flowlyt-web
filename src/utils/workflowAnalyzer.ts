@@ -1039,8 +1039,8 @@ export function generatePDFReport(reports: AnalysisReport[], githubInfo?: { repo
               resetTextFormatting();
               yPosition += 15;
 
-              // Issues list
-              issues.slice(0, 5).forEach((issue) => {
+              // Issues list - show up to 15 issues per category
+              issues.slice(0, 15).forEach((issue) => {
                 checkNewPage(20);
                 
                 // Use text-based severity indicators instead of emoji for PDF compatibility
@@ -1099,11 +1099,11 @@ export function generatePDFReport(reports: AnalysisReport[], githubInfo?: { repo
                 yPosition += 6;
               });
 
-              if (issues.length > 5) {
+              if (issues.length > 15) {
                 doc.setFontSize(9);
                 doc.setTextColor(...colors.secondary);
                 doc.setFont('helvetica', 'italic');
-                doc.text(`... and ${issues.length - 5} more ${type.replace('-', ' ')} issues (view full report for details)`, 30, yPosition);
+                doc.text(`... and ${issues.length - 15} more ${type.replace('-', ' ')} issues (view full report for details)`, 30, yPosition);
                 doc.setTextColor(...colors.text);
                 doc.setFont('helvetica', 'normal');
                 yPosition += 8;

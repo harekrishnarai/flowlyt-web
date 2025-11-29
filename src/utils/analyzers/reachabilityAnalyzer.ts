@@ -59,7 +59,8 @@ export function analyzeExecutionContext(
     // Environment-based conditions
     if (job.env) {
       Object.keys(job.env).forEach(envKey => {
-        if (job.env![envKey].includes('${{')) {
+        const envValue = job.env![envKey];
+        if (typeof envValue === 'string' && envValue.includes('${{')) {
           jobConditions.push(`env.${envKey} dependency`);
         }
       });

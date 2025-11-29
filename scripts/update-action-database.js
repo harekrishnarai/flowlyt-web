@@ -39,7 +39,34 @@ class ActionDatabaseUpdater {
   }
 
   /**
-   * Fetch the latest release information for an action
+   * Fetch all tags for an action to get complete version history
+   */
+  async fetchAllTags(actionName) {
+    try {
+      const url = `https://api.github.com/repos/${actionName}/tags?per_page=100`;
+      const headers = {};
+      
+      if (this.githubToken) {
+        headers.Authorization = `token ${this.githubToken}`;
+      }
+
+      const response = await fetch(url, { headers });
+      
+      if (!response.ok) {
+        console.warn(`⚠️  Failed to fetch tags for ${actionName}: ${response.status}`);
+        return [];
+      }
+
+      const tags = await response.json();
+      return tags;
+    } catch (error) {
+      console.error(`❌ Error fetching tags for ${actionName}:`, error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch the latest release information for an action with multiple versions
    */
   async fetchLatestRelease(actionName) {
     try {
@@ -68,6 +95,133 @@ class ActionDatabaseUpdater {
     } catch (error) {
       console.error(`❌ Error fetching ${actionName}:`, error.message);
       return null;
+    }
+  }
+
+  /**
+   * Fetch comprehensive version information including major version tags
+   */
+  async fetchVersions(actionName, maxVersions = 10) {
+    try {
+      const tags = await this.fetchAllTags(actionName);
+      if (!tags || tags.length === 0) {
+        console.warn(`⚠️  No tags found for ${actionName}`);
+        return null;
+      }
+
+      // Filter and organize versions
+      const versions = [];
+      const majorVersions = new Set();
+      
+      // Process tags to find semantic versions and major version tags
+      for (const tag of tags) {
+        const tagName = tag.name;
+        
+        // Match semantic versions (v1.2.3) or major versions (v1, v2)
+        const semverMatch = tagName.match(/^v(\d+)\.(\d+)\.(\d+)$/);
+        const majorMatch = tagName.match(/^v(\d+)$/);
+        
+        if (semverMatch || majorMatch) {
+          const sha = tag.commit.sha;
+          
+          // Fetch commit details to get the date
+          const commitDate = await this.fetchCommitDate(actionName, sha);
+          
+          versions.push({
+            version: tagName,
+            sha: sha,
+            publishedAt: commitDate,
+            isMajorTag: !!majorMatch,
+            semver: semverMatch ? {
+              major: parseInt(semverMatch[1]),
+              minor: parseInt(semverMatch[2]),
+              patch: parseInt(semverMatch[3])
+            } : null
+          });
+          
+          if (majorMatch) {
+            majorVersions.add(tagName);
+          }
+        }
+      }
+
+      // Sort by semantic version (newest first)
+      versions.sort((a, b) => {
+        if (a.semver && b.semver) {
+          if (a.semver.major !== b.semver.major) return b.semver.major - a.semver.major;
+          if (a.semver.minor !== b.semver.minor) return b.semver.minor - a.semver.minor;
+          return b.semver.patch - a.semver.patch;
+        }
+        return 0;
+      });
+
+      // Get the latest overall version
+      const latestVersion = versions.find(v => v.semver);
+      
+      // Select versions to include: latest from each major version + major tags
+      const selectedVersions = [];
+      const includedMajors = new Set();
+      
+      // Include latest full version
+      if (latestVersion) {
+        selectedVersions.push(latestVersion);
+        includedMajors.add(latestVersion.semver.major);
+      }
+
+      // Include latest from each major version (limit per major)
+      for (const version of versions) {
+        if (version.semver && !includedMajors.has(version.semver.major)) {
+          selectedVersions.push(version);
+          includedMajors.add(version.semver.major);
+        }
+        
+        // Limit total versions
+        if (selectedVersions.filter(v => v.semver).length >= maxVersions) {
+          break;
+        }
+      }
+
+      // Include major version tags (v4, v5, v6)
+      for (const version of versions) {
+        if (version.isMajorTag) {
+          selectedVersions.push(version);
+        }
+      }
+
+      // Remove duplicates
+      const uniqueVersions = Array.from(
+        new Map(selectedVersions.map(v => [v.version, v])).values()
+      );
+
+      return {
+        latestVersion: latestVersion?.version || tags[0].name,
+        latestSHA: latestVersion?.sha || tags[0].commit.sha,
+        versions: uniqueVersions
+      };
+    } catch (error) {
+      console.error(`❌ Error fetching versions for ${actionName}:`, error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch commit date
+   */
+  async fetchCommitDate(actionName, sha) {
+    try {
+      const url = `https://api.github.com/repos/${actionName}/commits/${sha}`;
+      const headers = {};
+      
+      if (this.githubToken) {
+        headers.Authorization = `token ${this.githubToken}`;
+      }
+
+      const response = await fetch(url, { headers });
+      const data = await response.json();
+      
+      return data.commit?.committer?.date || new Date().toISOString();
+    } catch (error) {
+      return new Date().toISOString();
     }
   }
 
@@ -107,12 +261,12 @@ class ActionDatabaseUpdater {
   async updateAction(actionName) {
     console.log(`🔄 Updating ${actionName}...`);
     
-    const release = await this.fetchLatestRelease(actionName);
-    if (!release) {
+    const versionInfo = await this.fetchVersions(actionName);
+    if (!versionInfo) {
       return false;
     }
 
-    console.log(`✅ Found ${actionName}@${release.version} (${release.sha?.substring(0, 8)}...)`);
+    console.log(`✅ Found ${actionName}@${versionInfo.latestVersion} with ${versionInfo.versions.length} versions`);
     
     // Read current database
     let databaseContent = readFileSync(this.databasePath, 'utf8');
@@ -123,17 +277,17 @@ class ActionDatabaseUpdater {
     
     if (actionExists) {
       // Update existing action
-      await this.updateExistingAction(actionName, release);
+      await this.updateExistingActionComprehensive(actionName, versionInfo);
     } else {
       // Add new action
-      await this.addNewAction(actionName, release);
+      await this.addNewActionComprehensive(actionName, versionInfo);
     }
 
     return true;
   }
 
   /**
-   * Update existing action in database
+   * Update existing action in database (legacy single version method)
    */
   async updateExistingAction(actionName, release) {
     console.log(`📝 Updating existing action: ${actionName}`);
@@ -178,7 +332,59 @@ class ActionDatabaseUpdater {
   }
 
   /**
-   * Add new action to database
+   * Update existing action with comprehensive version information
+   */
+  async updateExistingActionComprehensive(actionName, versionInfo) {
+    console.log(`📝 Comprehensively updating action: ${actionName}`);
+    
+    let databaseContent = readFileSync(this.databasePath, 'utf8');
+    
+    // Build the versions array
+    const versionsArray = versionInfo.versions
+      .map(v => {
+        const desc = v.isMajorTag 
+          ? `Points to latest v${v.version.substring(1)}.x.x`
+          : (v === versionInfo.versions[0] ? 'Latest stable release' : '');
+        
+        return `      {
+        version: '${v.version}',
+        sha: '${v.sha}',
+        publishedAt: '${v.publishedAt}'${desc ? `,\n        description: '${desc}'` : ''}
+      }`;
+      })
+      .join(',\n');
+
+    // Find and replace the entire action entry
+    const escapedName = actionName.replace(/\//g, '\\/');
+    const actionPattern = new RegExp(
+      `  '${escapedName}':\\s*\\{[\\s\\S]*?latestVersion:[^,]*,[\\s\\S]*?latestSHA:[^,]*,[\\s\\S]*?versions:\\s*\\[[\\s\\S]*?\\]\\s*\\}`,
+      'g'
+    );
+
+    const [owner, repo] = actionName.split('/');
+    const isOfficial = ['actions', 'github'].includes(owner);
+
+    const newEntry = `  '${actionName}': {
+    name: '${actionName}',
+    owner: '${owner}',
+    repository: '${repo}',
+    description: 'Action for ${repo}',
+    isOfficial: ${isOfficial},
+    latestVersion: '${versionInfo.latestVersion}',
+    latestSHA: '${versionInfo.latestSHA}',
+    versions: [
+${versionsArray}
+    ]
+  }`;
+
+    databaseContent = databaseContent.replace(actionPattern, newEntry);
+    
+    writeFileSync(this.databasePath, databaseContent, 'utf8');
+    console.log(`✅ Comprehensively updated ${actionName} with ${versionInfo.versions.length} versions`);
+  }
+
+  /**
+   * Add new action to database (legacy single version method)
    */
   async addNewAction(actionName, release) {
     console.log(`➕ Adding new action: ${actionName}`);
@@ -207,6 +413,62 @@ class ActionDatabaseUpdater {
     
     writeFileSync(this.databasePath, updatedContent, 'utf8');
     console.log(`✅ Added new action ${actionName}`);
+  }
+
+  /**
+   * Add new action with comprehensive version information
+   */
+  async addNewActionComprehensive(actionName, versionInfo) {
+    console.log(`➕ Adding new action with full version history: ${actionName}`);
+    
+    let databaseContent = readFileSync(this.databasePath, 'utf8');
+    
+    // Build the versions array
+    const versionsArray = versionInfo.versions
+      .map(v => {
+        const desc = v.isMajorTag 
+          ? `Points to latest v${v.version.substring(1)}.x.x`
+          : (v === versionInfo.versions[0] ? 'Latest stable release' : '');
+        
+        return `      {
+        version: '${v.version}',
+        sha: '${v.sha}',
+        publishedAt: '${v.publishedAt}'${desc ? `,\n        description: '${desc}'` : ''}
+      }`;
+      })
+      .join(',\n');
+
+    const [owner, repo] = actionName.split('/');
+    const isOfficial = ['actions', 'github'].includes(owner);
+
+    const newEntry = `
+  '${actionName}': {
+    name: '${actionName}',
+    owner: '${owner}',
+    repository: '${repo}',
+    description: 'Action for ${repo}',
+    isOfficial: ${isOfficial},
+    latestVersion: '${versionInfo.latestVersion}',
+    latestSHA: '${versionInfo.latestSHA}',
+    versions: [
+${versionsArray}
+    ]
+  },`;
+    
+    // Find the end of the ACTION_HASH_DATABASE object and insert before it
+    const insertPosition = databaseContent.lastIndexOf('};');
+    
+    if (insertPosition === -1) {
+      throw new Error('Could not find insertion point in database file');
+    }
+    
+    const beforeInsert = databaseContent.substring(0, insertPosition);
+    const afterInsert = databaseContent.substring(insertPosition);
+    
+    const updatedContent = beforeInsert + newEntry + '\n' + afterInsert;
+    
+    writeFileSync(this.databasePath, updatedContent, 'utf8');
+    console.log(`✅ Added new action ${actionName} with ${versionInfo.versions.length} versions`);
   }
 
   /**
