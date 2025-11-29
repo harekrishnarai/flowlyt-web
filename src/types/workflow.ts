@@ -24,11 +24,18 @@ export interface Job {
   'runs-on': string | string[];
   needs?: string[];
   steps: Step[];
-  permissions?: any;
+  permissions?: Record<string, string> | string;
   env?: Record<string, string>;
   if?: string;
-  strategy?: any;
+  strategy?: {
+    matrix?: Record<string, unknown>;
+    'fail-fast'?: boolean;
+    'max-parallel'?: number;
+  };
   'continue-on-error'?: boolean;
+  'timeout-minutes'?: number;
+  environment?: string | { name: string; url?: string };
+  concurrency?: string | { group: string; 'cancel-in-progress'?: boolean };
 }
 
 export interface Step {

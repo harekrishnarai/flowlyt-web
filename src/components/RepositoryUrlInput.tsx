@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Github, GitBranch, Download, AlertCircle, CheckCircle, ExternalLink } from 'lucide-react';
+import { Github, GitBranch, Download, AlertCircle, CheckCircle, ExternalLink, Key, ChevronDown, ChevronUp, Shield, Eye, EyeOff } from 'lucide-react';
 import { WorkflowFile } from '../types/workflow';
 import { fetchWorkflowFiles, parseGitHubUrl, validateGitHubUrl } from '../utils/githubExtractor';
 import { fetchGitLabCIFiles, parseGitLabUrl, validateGitLabUrl, detectRepositoryType } from '../utils/gitlabExtractor';
@@ -13,6 +13,9 @@ export default function RepositoryUrlInput({ onFilesExtracted }: RepositoryUrlIn
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showTokenInput, setShowTokenInput] = useState(false);
+  const [githubToken, setGithubToken] = useState('');
+  const [showToken, setShowToken] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +49,8 @@ export default function RepositoryUrlInput({ onFilesExtracted }: RepositoryUrlIn
           return;
         }
 
-        workflowFiles = await fetchWorkflowFiles(repoInfo);
+        // Pass the token if provided
+        workflowFiles = await fetchWorkflowFiles(repoInfo, githubToken || undefined);
         repoDisplayName = `${repoInfo.owner}/${repoInfo.repo}`;
       } else if (repoType === 'gitlab') {
         // Validate GitLab URL
@@ -78,6 +82,9 @@ export default function RepositoryUrlInput({ onFilesExtracted }: RepositoryUrlIn
         
         setSuccess(successMessage);
         setUrl(''); // Clear the input after successful extraction
+        // Reset token state after successful extraction
+        setGithubToken('');
+        setShowTokenInput(false);
       } else {
         const fileType = repoType === 'github' ? 'workflow files' : 'GitLab CI files';
         setError(`No ${fileType} found in the repository`);
@@ -90,9 +97,19 @@ export default function RepositoryUrlInput({ onFilesExtracted }: RepositoryUrlIn
   };
 
   const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setUrl(e.target.value);
+    const newUrl = e.target.value;
+    const newType = newUrl ? detectRepositoryType(newUrl) : 'unknown';
+    const currentType = url ? detectRepositoryType(url) : 'unknown';
+    
+    setUrl(newUrl);
     setError(null);
     setSuccess(null);
+    
+    // Reset token state when switching from GitHub to non-GitHub URL
+    if (currentType === 'github' && newType !== 'github') {
+      setGithubToken('');
+      setShowTokenInput(false);
+    }
   };
 
   const detectedType = url ? detectRepositoryType(url) : 'unknown';
@@ -142,6 +159,107 @@ export default function RepositoryUrlInput({ onFilesExtracted }: RepositoryUrlIn
             )}
           </div>
         </div>
+
+        {/* Optional GitHub Token Section - Only show for GitHub repos */}
+        {detectedType === 'github' && (
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden transition-colors duration-300">
+            <button
+              type="button"
+              onClick={() => setShowTokenInput(!showTokenInput)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200"
+            >
+              <div className="flex items-center space-x-2">
+                <Key className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  GitHub Token (Optional)
+                </span>
+                {githubToken && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
+                    Token Set
+                  </span>
+                )}
+              </div>
+              {showTokenInput ? (
+                <ChevronUp className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+              )}
+            </button>
+            
+            {showTokenInput && (
+              <div className="px-4 py-4 space-y-3 bg-white dark:bg-gray-800/30">
+                {/* Privacy Notice */}
+                <div className="flex items-start space-x-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/30 rounded-lg">
+                  <Shield className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                  <div className="text-xs text-blue-700 dark:text-blue-300">
+                    <p className="font-medium">🔒 Your token stays private</p>
+                    <p className="mt-1">
+                      This is a client-side application. Your token is <strong>never stored</strong> and is <strong>never sent to any server</strong>. 
+                      It is only used directly in your browser to make requests to the GitHub API.
+                    </p>
+                  </div>
+                </div>
+                
+                <div>
+                  <label htmlFor="github-token" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Personal Access Token
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showToken ? 'text' : 'password'}
+                      id="github-token"
+                      value={githubToken}
+                      onChange={(e) => setGithubToken(e.target.value)}
+                      placeholder="ghp_xxxxxxxxxxxx or github_pat_xxxxxxxxxxxx"
+                      className="block w-full pl-3 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 transition-colors duration-300"
+                      disabled={isLoading}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowToken(!showToken)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      {showToken ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+                  <p><strong>When to use:</strong></p>
+                  <ul className="list-disc list-inside space-y-0.5 ml-1">
+                    <li>To scan <strong>private repositories</strong></li>
+                    <li>When you hit the <strong>GitHub API rate limit</strong> (60 requests/hour → 5,000/hour with token)</li>
+                  </ul>
+                  <p className="mt-2">
+                    <a 
+                      href="https://github.com/settings/tokens/new?scopes=repo&description=Flowlyt%20Workflow%20Analyzer" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center"
+                    >
+                      Create a token with <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">repo</code> scope
+                      <ExternalLink className="w-3 h-3 ml-1" />
+                    </a>
+                  </p>
+                </div>
+                
+                {githubToken && (
+                  <button
+                    type="button"
+                    onClick={() => setGithubToken('')}
+                    className="text-xs text-red-600 dark:text-red-400 hover:underline"
+                  >
+                    Clear token
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         <button
           type="submit"

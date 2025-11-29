@@ -1,5 +1,5 @@
 import { WorkflowData, AnalysisResult } from '../../types/workflow';
-import { findLineNumber, findStepLineNumber, extractCodeSnippet, extractStepSnippet } from '../yamlParser';
+import { findLineNumber, findJobLineNumber, findStepLineNumber, extractCodeSnippet, extractStepSnippet } from '../yamlParser';
 import { GitHubAnalysisContext } from '../workflowAnalyzer';
 import { getSHARecommendation, isActionInDatabase, isVersionOutdated } from '../actionHashDatabase';
 import { 
@@ -17,6 +17,12 @@ function createGitHubLink(githubContext: GitHubAnalysisContext, lineNumber?: num
   const branch = githubContext.branch || 'main';
   return `${githubContext.repoUrl}/blob/${branch}/${githubContext.filePath}#L${lineNumber}`;
 }
+
+// Trusted action owners - actions from these organizations are considered more reliable
+const TRUSTED_ACTION_OWNERS = [
+  'actions', 'github', 'docker', 'microsoft', 'azure', 'aws-actions', 
+  'google-github-actions', 'hashicorp', 'codecov', 'sonarqube-quality-gate-action'
+];
 
 export function analyzeSecurityIssues(
   workflow: WorkflowData, 
@@ -52,7 +58,7 @@ export function analyzeSecurityIssues(
   ];
   
   // Group patterns by line and only keep the highest priority match per line
-  const lineMatches = new Map<number, { pattern: any, match: RegExpMatchArray }>();
+  const lineMatches = new Map<number, { pattern: { pattern: RegExp, name: string, priority: number }, match: RegExpMatchArray }>();
   
   secretPatterns.forEach(({ pattern, name, priority }) => {
     const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
@@ -111,7 +117,7 @@ export function analyzeSecurityIssues(
     { pattern: /cat.*config/i, type: 'config file access' },
   ];
 
-  const logLineMatches = new Map<number, { pattern: any, match: RegExpMatchArray }>();
+  const logLineMatches = new Map<number, { pattern: { pattern: RegExp, type: string }, match: RegExpMatchArray }>();
 
   sensitiveLogPatterns.forEach(({ pattern, type }) => {
     const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
@@ -217,26 +223,190 @@ export function analyzeSecurityIssues(
     }
   });
   
-  // Check for overly permissive permissions
+  // Check for overly permissive permissions - Enhanced detection
   if (workflow.permissions) {
     const permissions = workflow.permissions;
-    if (permissions === 'write-all' || (typeof permissions === 'object' && permissions.contents === 'write')) {
-      const lineNumber = findLineNumber(content, 'permissions:');
-      const githubLink = createGitHubLink(githubContext, lineNumber);
-      const codeSnippet = extractCodeSnippet(content, lineNumber, 3);
-      
+    const lineNumber = findLineNumber(content, 'permissions:');
+    const githubLink = createGitHubLink(githubContext, lineNumber);
+    const codeSnippet = extractCodeSnippet(content, lineNumber, 5);
+    
+    // Check for write-all
+    if (permissions === 'write-all') {
       results.push({
-        id: `permissions-${Date.now()}`,
+        id: `permissions-write-all-${lineNumber}`,
         type: 'security',
-        severity: 'warning',
-        title: 'Overly permissive workflow permissions',
-        description: 'Workflow has write permissions that may be unnecessary.',
+        severity: 'error',
+        title: 'Dangerous write-all permissions',
+        description: 'Workflow uses write-all permissions which grants full write access to all scopes. This violates the principle of least privilege.',
         file: fileName,
         location: { line: lineNumber },
-        suggestion: 'Use minimal required permissions. Consider using job-level permissions instead.',
+        suggestion: 'Replace write-all with specific, minimal permissions required for the workflow. Define only the permissions actually needed.',
+        links: [
+          'https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#permissions',
+          'https://docs.github.com/en/actions/security-guides/automatic-token-authentication#permissions-for-the-github_token'
+        ],
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
+      });
+    }
+    
+    // Check for read-all (still overly broad)
+    if (permissions === 'read-all') {
+      results.push({
+        id: `permissions-read-all-${lineNumber}`,
+        type: 'security',
+        severity: 'warning',
+        title: 'Overly broad read-all permissions',
+        description: 'Workflow uses read-all permissions which grants read access to all scopes. Consider specifying only required read permissions.',
+        file: fileName,
+        location: { line: lineNumber },
+        suggestion: 'Replace read-all with specific read permissions for only the required scopes.',
         links: ['https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#permissions'],
         githubUrl: githubLink,
         codeSnippet: codeSnippet || undefined
+      });
+    }
+    
+    // Check for individual overly permissive permissions
+    if (typeof permissions === 'object') {
+      const dangerousWritePermissions = [
+        { key: 'contents', desc: 'Contents write permission allows modifying repository files and releases' },
+        { key: 'actions', desc: 'Actions write permission allows modifying workflow files' },
+        { key: 'packages', desc: 'Packages write permission allows publishing packages' },
+        { key: 'deployments', desc: 'Deployments write permission allows creating deployments' },
+        { key: 'security-events', desc: 'Security-events write permission allows modifying security advisories' },
+        { key: 'id-token', desc: 'ID-token write permission enables OIDC token requests (verify cloud permissions)' },
+      ];
+      
+      dangerousWritePermissions.forEach(({ key, desc }) => {
+        if (permissions[key] === 'write') {
+          results.push({
+            id: `permissions-${key}-write-${lineNumber}`,
+            type: 'security',
+            severity: 'warning',
+            title: `Potentially excessive ${key} write permission`,
+            description: `${desc}. Verify this permission is necessary for the workflow.`,
+            file: fileName,
+            location: { line: lineNumber },
+            suggestion: `Review if ${key}: write is truly needed. Use read permission if possible or remove if not required.`,
+            links: ['https://docs.github.com/en/actions/security-guides/automatic-token-authentication#permissions-for-the-github_token'],
+            githubUrl: githubLink,
+            codeSnippet: codeSnippet || undefined
+          });
+        }
+      });
+    }
+  }
+  
+  // Check for missing permissions declaration (token inherits repo settings)
+  if (!workflow.permissions) {
+    const hasSensitiveOperations = content.includes('secrets.GITHUB_TOKEN') || 
+                                   content.includes('github.token') ||
+                                   content.includes('GITHUB_TOKEN');
+    
+    if (hasSensitiveOperations) {
+      results.push({
+        id: `missing-permissions-declaration`,
+        type: 'security',
+        severity: 'warning',
+        title: 'Missing workflow permissions declaration',
+        description: 'Workflow uses GITHUB_TOKEN but does not declare explicit permissions. The token will inherit default repository permissions which may be overly permissive.',
+        file: fileName,
+        location: { line: 1 },
+        suggestion: 'Add an explicit permissions block at the workflow level to follow the principle of least privilege. Start with permissions: {} and add only what is needed.',
+        links: [
+          'https://docs.github.com/en/actions/security-guides/automatic-token-authentication',
+          'https://github.blog/changelog/2023-02-02-github-actions-updating-the-default-github_token-permissions-to-read-only/'
+        ]
+      });
+    }
+  }
+  
+  // Check for dangerous trigger configurations
+  const dangerousTriggerPatterns = [
+    { 
+      trigger: 'pull_request_target', 
+      severity: 'error' as const,
+      desc: 'pull_request_target runs in the context of the base repository with write access. Never checkout and run untrusted PR code.',
+      pattern: /pull_request_target:/
+    },
+    { 
+      trigger: 'workflow_run', 
+      severity: 'warning' as const,
+      desc: 'workflow_run can be triggered by forked PRs and runs with elevated privileges. Verify artifacts and inputs carefully.',
+      pattern: /workflow_run:/
+    },
+    { 
+      trigger: 'issue_comment', 
+      severity: 'warning' as const,
+      desc: 'issue_comment trigger can be invoked by any user. Implement proper authorization checks before running privileged commands.',
+      pattern: /issue_comment:/
+    },
+    { 
+      trigger: 'discussion_comment', 
+      severity: 'warning' as const,
+      desc: 'discussion_comment trigger can be invoked by any user. Implement authorization checks before running commands.',
+      pattern: /discussion_comment:/
+    },
+    { 
+      trigger: 'repository_dispatch', 
+      severity: 'info' as const,
+      desc: 'repository_dispatch can be triggered externally. Validate client_payload inputs before use.',
+      pattern: /repository_dispatch:/
+    },
+    { 
+      trigger: 'workflow_dispatch', 
+      severity: 'info' as const,
+      desc: 'workflow_dispatch allows manual input. Validate all inputs before use in commands.',
+      pattern: /workflow_dispatch:/
+    },
+  ];
+  
+  dangerousTriggerPatterns.forEach(({ trigger, severity, desc, pattern }) => {
+    const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
+    for (const match of matches) {
+      const lineNumber = findLineNumber(content, match[0]);
+      const githubLink = createGitHubLink(githubContext, lineNumber);
+      const codeSnippet = extractCodeSnippet(content, lineNumber, 4);
+      
+      results.push({
+        id: `dangerous-trigger-${trigger}-${lineNumber}`,
+        type: 'security',
+        severity: severity,
+        title: `Security-sensitive trigger: ${trigger}`,
+        description: desc,
+        file: fileName,
+        location: { line: lineNumber },
+        suggestion: `Review the security implications of ${trigger}. Implement input validation and authorization checks where applicable.`,
+        links: [
+          'https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#potential-impact-of-a-compromised-runner',
+          'https://securitylab.github.com/research/github-actions-preventing-pwn-requests/'
+        ],
+        githubUrl: githubLink,
+        codeSnippet: codeSnippet || undefined
+      });
+    }
+  });
+  
+  // Check for fork security settings with pull_request trigger
+  if (content.includes('pull_request:') || content.includes('pull_request_target:')) {
+    // Check if workflows could be triggered by forks without restrictions
+    const hasForkRestriction = content.includes("github.event.pull_request.head.repo.full_name == github.repository") ||
+                               content.includes("github.event.pull_request.head.repo.fork == false") ||
+                               content.includes("!github.event.pull_request.head.repo.fork");
+    
+    if (!hasForkRestriction && content.includes('secrets.')) {
+      const lineNumber = findLineNumber(content, 'pull_request');
+      results.push({
+        id: `fork-secrets-exposure`,
+        type: 'security',
+        severity: 'warning',
+        title: 'Potential secrets exposure to forks',
+        description: 'Workflow triggered by pull_request uses secrets but does not check if the PR is from a fork. Secrets are not available to fork PRs by default, but pull_request_target exposes them.',
+        file: fileName,
+        location: { line: lineNumber },
+        suggestion: 'Add a condition to check if PR is from a fork before accessing secrets: if: github.event.pull_request.head.repo.full_name == github.repository',
+        links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#handling-untrusted-input']
       });
     }
   }
@@ -373,12 +543,8 @@ export function analyzeSecurityIssues(
         
         // Check for actions from untrusted sources (enhanced detection)
         const actionOwner = step.uses.split('/')[0];
-        const trustedOwners = [
-          'actions', 'github', 'docker', 'microsoft', 'azure', 'aws-actions', 
-          'google-github-actions', 'hashicorp', 'codecov', 'sonarqube-quality-gate-action'
-        ];
         
-        if (!trustedOwners.includes(actionOwner)) {
+        if (!TRUSTED_ACTION_OWNERS.includes(actionOwner)) {
           const severity = step.uses.includes('@') && /^[a-f0-9]{40}$/i.test(step.uses.split('@')[1]) ? 'info' : 'warning';
           
           results.push({
@@ -482,7 +648,6 @@ export function analyzeSecurityIssues(
 
   if (hasDangerousTrigger && hasCheckout) {
     const triggerLineNumber = findLineNumber(content, dangerousCheckoutPatterns[0].source);
-    const checkoutLineNumber = findLineNumber(content, dangerousCheckoutPatterns[1].source);
     const githubLink = createGitHubLink(githubContext, triggerLineNumber);
     const codeSnippet = extractCodeSnippet(content, triggerLineNumber, 3);
 
@@ -562,34 +727,109 @@ export function analyzeSecurityIssues(
     }
   });
 
-  // Check for expression injection vulnerabilities
+  // Check for expression injection vulnerabilities - comprehensive patterns
+  // Organized by source category for better detection and reporting
   const expressionInjectionPatterns = [
-    /\$\{\{.*github\.event\.issue\.title.*\}\}/i,
-    /\$\{\{.*github\.event\.issue\.body.*\}\}/i,
-    /\$\{\{.*github\.event\.pull_request\.title.*\}\}/i,
-    /\$\{\{.*github\.event\.pull_request\.body.*\}\}/i,
-    /\$\{\{.*github\.event\.comment\.body.*\}\}/i,
-    /\$\{\{.*github\.event\.review\.body.*\}\}/i,
-    /\$\{\{.*github\.event\.pages.*\.page_name.*\}\}/i,
-    /\$\{\{.*github\.event\.commits.*\.message.*\}\}/i,
-    /\$\{\{.*github\.event\.head_commit\.message.*\}\}/i,
-    /\$\{\{.*github\.event\.head_commit\.author\.email.*\}\}/i,
-    /\$\{\{.*github\.event\.head_commit\.author\.name.*\}\}/i,
-    /\$\{\{.*github\.event\.commits.*\.author\.email.*\}\}/i,
-    /\$\{\{.*github\.event\.commits.*\.author\.name.*\}\}/i,
-    /\$\{\{.*github\.event\.pull_request\.head\.ref.*\}\}/i,
-    /\$\{\{.*github\.event\.pull_request\.head\.label.*\}\}/i,
-    /\$\{\{.*github\.event\.pull_request\.head\.repo\.default_branch.*\}\}/i,
-    /\$\{\{.*github\.head_ref.*\}\}/i,
-    /\$\{\{.*env\..*\}\}/i,
-    /\$\{\{.*steps\..*\.outputs\..*\}\}/i,
-    /\$\{\{.*needs\..*\.outputs\..*\}\}/i,
+    // Issue-related injections
+    { pattern: /\$\{\{.*github\.event\.issue\.title.*\}\}/i, source: 'issue title', severity: 'error' as const },
+    { pattern: /\$\{\{.*github\.event\.issue\.body.*\}\}/i, source: 'issue body', severity: 'error' as const },
+    { pattern: /\$\{\{.*github\.event\.issue\.user\.login.*\}\}/i, source: 'issue author', severity: 'warning' as const },
+    
+    // Pull request-related injections
+    { pattern: /\$\{\{.*github\.event\.pull_request\.title.*\}\}/i, source: 'PR title', severity: 'error' as const },
+    { pattern: /\$\{\{.*github\.event\.pull_request\.body.*\}\}/i, source: 'PR body', severity: 'error' as const },
+    { pattern: /\$\{\{.*github\.event\.pull_request\.head\.ref.*\}\}/i, source: 'PR head ref', severity: 'error' as const },
+    { pattern: /\$\{\{.*github\.event\.pull_request\.head\.label.*\}\}/i, source: 'PR head label', severity: 'error' as const },
+    { pattern: /\$\{\{.*github\.event\.pull_request\.head\.repo\.default_branch.*\}\}/i, source: 'PR head repo default branch', severity: 'warning' as const },
+    { pattern: /\$\{\{.*github\.event\.pull_request\.user\.login.*\}\}/i, source: 'PR author', severity: 'warning' as const },
+    
+    // Comment-related injections (issues, PRs, discussions)
+    { pattern: /\$\{\{.*github\.event\.comment\.body.*\}\}/i, source: 'comment body', severity: 'error' as const },
+    { pattern: /\$\{\{.*github\.event\.comment\.user\.login.*\}\}/i, source: 'comment author', severity: 'warning' as const },
+    
+    // Discussion-related injections (NEW)
+    { pattern: /\$\{\{.*github\.event\.discussion\.title.*\}\}/i, source: 'discussion title', severity: 'error' as const },
+    { pattern: /\$\{\{.*github\.event\.discussion\.body.*\}\}/i, source: 'discussion body', severity: 'error' as const },
+    { pattern: /\$\{\{.*github\.event\.discussion\.user\.login.*\}\}/i, source: 'discussion author', severity: 'warning' as const },
+    { pattern: /\$\{\{.*github\.event\.discussion_comment\.body.*\}\}/i, source: 'discussion comment body', severity: 'error' as const },
+    { pattern: /\$\{\{.*github\.event\.discussion_comment\.user\.login.*\}\}/i, source: 'discussion comment author', severity: 'warning' as const },
+    
+    // Review-related injections
+    { pattern: /\$\{\{.*github\.event\.review\.body.*\}\}/i, source: 'review body', severity: 'error' as const },
+    { pattern: /\$\{\{.*github\.event\.review\.user\.login.*\}\}/i, source: 'review author', severity: 'warning' as const },
+    { pattern: /\$\{\{.*github\.event\.review_comment\.body.*\}\}/i, source: 'review comment body', severity: 'error' as const },
+    
+    // Commit-related injections
+    { pattern: /\$\{\{.*github\.event\.commits\[.*\]\.message.*\}\}/i, source: 'commit message', severity: 'error' as const },
+    { pattern: /\$\{\{.*github\.event\.commits.*\.message.*\}\}/i, source: 'commit message', severity: 'error' as const },
+    { pattern: /\$\{\{.*github\.event\.head_commit\.message.*\}\}/i, source: 'head commit message', severity: 'error' as const },
+    { pattern: /\$\{\{.*github\.event\.head_commit\.author\.email.*\}\}/i, source: 'commit author email', severity: 'error' as const },
+    { pattern: /\$\{\{.*github\.event\.head_commit\.author\.name.*\}\}/i, source: 'commit author name', severity: 'error' as const },
+    { pattern: /\$\{\{.*github\.event\.commits.*\.author\.email.*\}\}/i, source: 'commit author email', severity: 'error' as const },
+    { pattern: /\$\{\{.*github\.event\.commits.*\.author\.name.*\}\}/i, source: 'commit author name', severity: 'error' as const },
+    
+    // Git ref injections
+    { pattern: /\$\{\{.*github\.head_ref.*\}\}/i, source: 'head ref', severity: 'error' as const },
+    { pattern: /\$\{\{.*github\.base_ref.*\}\}/i, source: 'base ref', severity: 'warning' as const },
+    { pattern: /\$\{\{.*github\.ref_name.*\}\}/i, source: 'ref name', severity: 'warning' as const },
+    
+    // Pages-related injections
+    { pattern: /\$\{\{.*github\.event\.pages.*\.page_name.*\}\}/i, source: 'page name', severity: 'error' as const },
+    
+    // Workflow dispatch inputs (user-controlled)
+    { pattern: /\$\{\{.*github\.event\.inputs\..*\}\}/i, source: 'workflow dispatch input', severity: 'warning' as const },
+    { pattern: /\$\{\{.*inputs\..*\}\}/i, source: 'workflow input', severity: 'warning' as const },
+    
+    // Client payload (repository dispatch)
+    { pattern: /\$\{\{.*github\.event\.client_payload\..*\}\}/i, source: 'client payload', severity: 'error' as const },
+    
+    // Release-related injections (NEW)
+    { pattern: /\$\{\{.*github\.event\.release\.name.*\}\}/i, source: 'release name', severity: 'warning' as const },
+    { pattern: /\$\{\{.*github\.event\.release\.body.*\}\}/i, source: 'release body', severity: 'error' as const },
+    { pattern: /\$\{\{.*github\.event\.release\.tag_name.*\}\}/i, source: 'release tag name', severity: 'warning' as const },
+    
+    // Milestone-related injections (NEW)
+    { pattern: /\$\{\{.*github\.event\.milestone\.title.*\}\}/i, source: 'milestone title', severity: 'warning' as const },
+    { pattern: /\$\{\{.*github\.event\.milestone\.description.*\}\}/i, source: 'milestone description', severity: 'error' as const },
+    
+    // Label-related injections (NEW)
+    { pattern: /\$\{\{.*github\.event\.label\.name.*\}\}/i, source: 'label name', severity: 'warning' as const },
+    { pattern: /\$\{\{.*github\.event\.label\.description.*\}\}/i, source: 'label description', severity: 'warning' as const },
+    
+    // Project-related injections (NEW)
+    { pattern: /\$\{\{.*github\.event\.project\.name.*\}\}/i, source: 'project name', severity: 'warning' as const },
+    { pattern: /\$\{\{.*github\.event\.project\.body.*\}\}/i, source: 'project body', severity: 'error' as const },
+    { pattern: /\$\{\{.*github\.event\.project_card\.note.*\}\}/i, source: 'project card note', severity: 'error' as const },
+    { pattern: /\$\{\{.*github\.event\.project_column\.name.*\}\}/i, source: 'project column name', severity: 'warning' as const },
+    
+    // Wiki-related injections (NEW)
+    { pattern: /\$\{\{.*github\.event\.pages\[.*\]\.title.*\}\}/i, source: 'wiki page title', severity: 'error' as const },
+    
+    // Check run/suite injections (NEW)
+    { pattern: /\$\{\{.*github\.event\.check_run\.name.*\}\}/i, source: 'check run name', severity: 'warning' as const },
+    { pattern: /\$\{\{.*github\.event\.check_suite\.head_branch.*\}\}/i, source: 'check suite head branch', severity: 'warning' as const },
+    
+    // Deployment-related injections (NEW)
+    { pattern: /\$\{\{.*github\.event\.deployment\.ref.*\}\}/i, source: 'deployment ref', severity: 'warning' as const },
+    { pattern: /\$\{\{.*github\.event\.deployment\.environment.*\}\}/i, source: 'deployment environment', severity: 'warning' as const },
+    { pattern: /\$\{\{.*github\.event\.deployment_status\.environment.*\}\}/i, source: 'deployment status environment', severity: 'warning' as const },
+    
+    // Fork-related injections (NEW)
+    { pattern: /\$\{\{.*github\.event\.forkee\.full_name.*\}\}/i, source: 'forked repo name', severity: 'warning' as const },
+    
+    // Sender-related injections (NEW)
+    { pattern: /\$\{\{.*github\.event\.sender\.login.*\}\}/i, source: 'event sender login', severity: 'warning' as const },
+    
+    // General env and output injections (can propagate untrusted data)
+    { pattern: /\$\{\{.*env\..*\}\}/i, source: 'environment variable', severity: 'info' as const },
+    { pattern: /\$\{\{.*steps\..*\.outputs\..*\}\}/i, source: 'step output', severity: 'info' as const },
+    { pattern: /\$\{\{.*needs\..*\.outputs\..*\}\}/i, source: 'job output', severity: 'info' as const },
   ];
 
-  expressionInjectionPatterns.forEach(pattern => {
+  expressionInjectionPatterns.forEach(({ pattern, source, severity }) => {
     const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
     for (const match of matches) {
-      // Skip if it's properly sanitized (basic check for quotes or sanitization functions)
+      // Skip if it's properly sanitized (check for quotes or sanitization functions)
       if (match[0].includes('toJSON') || match[0].includes('fromJSON') || match[0].includes('contains')) {
         continue;
       }
@@ -599,15 +839,18 @@ export function analyzeSecurityIssues(
       const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
 
       results.push({
-        id: `expression-injection-${Date.now()}-${Math.random()}`,
+        id: `expression-injection-${source.replace(/\s+/g, '-')}-${lineNumber}`,
         type: 'security',
-        severity: 'error',
-        title: 'Potential expression injection',
-        description: `Using user-controlled GitHub context without sanitization: ${match[0]}`,
+        severity: severity,
+        title: `Potential expression injection via ${source}`,
+        description: `Using user-controlled ${source} without sanitization: ${match[0]}. This can allow command injection attacks.`,
         file: fileName,
         location: { line: lineNumber },
-        suggestion: 'Sanitize user input before using in expressions. Use actions/github-script for safer processing.',
-        links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
+        suggestion: `Avoid using ${source} directly in run commands. Use an intermediate environment variable or actions/github-script for safer processing.`,
+        links: [
+          'https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections',
+          'https://securitylab.github.com/research/github-actions-untrusted-input/'
+        ],
         githubUrl: githubLink,
         codeSnippet: codeSnippet || undefined
       });
@@ -855,7 +1098,7 @@ export function analyzeSecurityIssues(
 
   // Check for shell script issues (shellcheck-like)
   const shellcheckPatterns = [
-    /\$\([^\)]*\)/g, // Unquoted command substitution
+    /\$\([^)]*\)/g, // Unquoted command substitution
     /rm\s+-[rf]+\s+\*/i, // Dangerous rm commands
     /chmod\s+777/i, // Overly permissive chmod
     /sudo\s+.*\|\s*sh/i, // Sudo piped to shell
@@ -886,6 +1129,238 @@ export function analyzeSecurityIssues(
     }
   });
 
+  // === ADDITIONAL HARDENING STANDARDS ===
+  
+  // Check for missing timeout-minutes (can lead to runaway jobs)
+  Object.entries(workflow.jobs).forEach(([jobId, job]) => {
+    // Check if job has timeout-minutes defined
+    const hasJobTimeout = job['timeout-minutes'] !== undefined;
+    
+    if (!hasJobTimeout && job.steps && job.steps.length > 3) {
+      const jobLineNumber = findJobLineNumber(content, jobId);
+      const githubLink = createGitHubLink(githubContext, jobLineNumber);
+      
+      results.push({
+        id: `missing-timeout-${jobId}`,
+        type: 'security',
+        severity: 'info',
+        title: 'Missing job timeout',
+        description: `Job '${jobId}' does not specify timeout-minutes. Long-running or stuck jobs can consume resources and incur costs.`,
+        file: fileName,
+        location: { job: jobId, line: jobLineNumber },
+        suggestion: 'Add timeout-minutes to jobs to prevent runaway executions. Default is 360 minutes (6 hours).',
+        links: ['https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idtimeout-minutes'],
+        githubUrl: githubLink
+      });
+    }
+  });
+  
+  // Check for concurrency settings (prevent concurrent workflow runs)
+  if (!workflow.concurrency && content.includes('deploy')) {
+    results.push({
+      id: `missing-concurrency-deploy`,
+      type: 'security',
+      severity: 'info',
+      title: 'Missing concurrency control for deployment workflow',
+      description: 'Deployment workflow does not specify concurrency settings. Concurrent deployments may cause inconsistent state.',
+      file: fileName,
+      location: { line: 1 },
+      suggestion: 'Add concurrency settings to prevent concurrent deployments: concurrency: { group: deploy-${{ github.ref }}, cancel-in-progress: false }',
+      links: ['https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#concurrency']
+    });
+  }
+  
+  // Track which actions receive tokens
+  Object.entries(workflow.jobs).forEach(([jobId, job]) => {
+    if (!job.steps || !Array.isArray(job.steps)) return;
+    
+    job.steps.forEach((step, stepIndex) => {
+      if (step.uses && step.with) {
+        const actionOwner = step.uses.split('/')[0];
+        
+        // Check if token is passed to untrusted action
+        const withKeys = Object.keys(step.with);
+        const tokenKeys = withKeys.filter(k => k.toLowerCase().includes('token') || k.toLowerCase().includes('github'));
+        
+        if (tokenKeys.length > 0 && !TRUSTED_ACTION_OWNERS.includes(actionOwner)) {
+          const stepLineNumber = findStepLineNumber(content, jobId, stepIndex);
+          const githubLink = createGitHubLink(githubContext, stepLineNumber);
+          const codeSnippet = extractStepSnippet(content, jobId, stepIndex);
+          
+          results.push({
+            id: `token-to-untrusted-${jobId}-${stepIndex}`,
+            type: 'security',
+            severity: 'warning',
+            title: 'GITHUB_TOKEN passed to third-party action',
+            description: `Token is passed to third-party action '${step.uses}'. Verify the action is trustworthy and requires this token.`,
+            file: fileName,
+            location: { job: jobId, step: stepIndex, line: stepLineNumber },
+            suggestion: 'Review if the third-party action truly needs the token. Consider using a minimal-permission PAT instead.',
+            links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-third-party-actions'],
+            githubUrl: githubLink,
+            codeSnippet: codeSnippet || undefined
+          });
+        }
+      }
+    });
+  });
+  
+  // Check for persist-credentials in checkout (security hardening)
+  // Use the parsed workflow to analyze checkout steps
+  Object.entries(workflow.jobs).forEach(([jobId, job]) => {
+    if (!job.steps || !Array.isArray(job.steps)) return;
+    
+    job.steps.forEach((step, stepIndex) => {
+      if (step.uses && step.uses.includes('actions/checkout')) {
+        const hasPersistCredentialsFalse = step.with?.['persist-credentials'] === false || 
+                                           step.with?.['persist-credentials'] === 'false';
+        
+        if (!hasPersistCredentialsFalse) {
+          const stepLineNumber = findStepLineNumber(content, jobId, stepIndex);
+          const githubLink = createGitHubLink(githubContext, stepLineNumber);
+          const codeSnippet = extractStepSnippet(content, jobId, stepIndex);
+          
+          results.push({
+            id: `checkout-persist-credentials-${jobId}-${stepIndex}`,
+            type: 'security',
+            severity: 'info',
+            title: 'Consider disabling persist-credentials in checkout',
+            description: 'The checkout action persists credentials by default. For enhanced security, consider disabling this.',
+            file: fileName,
+            location: { job: jobId, step: stepIndex, line: stepLineNumber },
+            suggestion: 'Add "persist-credentials: false" to the checkout step to prevent credential persistence in the repository.',
+            links: ['https://github.com/actions/checkout#usage'],
+            githubUrl: githubLink,
+            codeSnippet: codeSnippet || undefined
+          });
+        }
+      }
+    });
+  });
+  
+  // Check for workflow_call without input validation
+  // Only flag if workflow_call is in the 'on' section and has inputs defined
+  const onSection = workflow.on;
+  const hasWorkflowCall = typeof onSection === 'object' && 
+                         onSection !== null && 
+                         'workflow_call' in onSection;
+  
+  if (hasWorkflowCall) {
+    const workflowCallConfig = (onSection as Record<string, unknown>)['workflow_call'];
+    const inputs = typeof workflowCallConfig === 'object' && 
+                  workflowCallConfig !== null && 
+                  'inputs' in (workflowCallConfig as Record<string, unknown>)
+                  ? (workflowCallConfig as Record<string, unknown>)['inputs']
+                  : null;
+    
+    if (inputs && typeof inputs === 'object') {
+      const lineNumber = findLineNumber(content, 'workflow_call:');
+      results.push({
+        id: `workflow-call-validation`,
+        type: 'security',
+        severity: 'info',
+        title: 'Reusable workflow inputs may need validation',
+        description: 'Reusable workflow accepts inputs. Ensure all inputs are properly validated before use in run commands.',
+        file: fileName,
+        location: { line: lineNumber },
+        suggestion: 'Validate input values before use in run commands to prevent injection attacks.',
+        links: ['https://docs.github.com/en/actions/using-workflows/reusing-workflows#using-inputs-and-secrets-in-a-reusable-workflow']
+      });
+    }
+  }
+  
+  // Check for GitHub script with potentially dangerous code
+  // Use parsed workflow to find github-script steps
+  const dangerousScriptPatterns = [
+    { pattern: /\bexec\b/, desc: 'exec' },
+    { pattern: /child_process/, desc: 'child_process' },
+    { pattern: /\brequire\s*\(/, desc: 'require' },
+  ];
+  
+  Object.entries(workflow.jobs).forEach(([jobId, job]) => {
+    if (!job.steps || !Array.isArray(job.steps)) return;
+    
+    job.steps.forEach((step, stepIndex) => {
+      if (step.uses && step.uses.includes('github-script') && step.with?.script) {
+        const script = String(step.with.script);
+        
+        for (const { pattern, desc } of dangerousScriptPatterns) {
+          if (pattern.test(script)) {
+            const stepLineNumber = findStepLineNumber(content, jobId, stepIndex);
+            const githubLink = createGitHubLink(githubContext, stepLineNumber);
+            const codeSnippet = extractStepSnippet(content, jobId, stepIndex);
+            
+            results.push({
+              id: `github-script-dangerous-${desc}-${jobId}-${stepIndex}`,
+              type: 'security',
+              severity: 'warning',
+              title: 'Potentially dangerous github-script usage',
+              description: `The github-script action contains potentially dangerous operation: ${desc}. Review for security implications.`,
+              file: fileName,
+              location: { job: jobId, step: stepIndex, line: stepLineNumber },
+              suggestion: 'Review the script for potential command injection or unsafe operations. Validate all inputs.',
+              links: ['https://github.com/actions/github-script'],
+              githubUrl: githubLink,
+              codeSnippet: codeSnippet || undefined
+            });
+            break; // Only report once per step
+          }
+        }
+      }
+    });
+  });
+  
+  // Check for job-level permissions that inherit from workflow
+  Object.entries(workflow.jobs).forEach(([jobId, job]) => {
+    if (!job.permissions && workflow.permissions) {
+      // Job inherits workflow permissions - this is fine but worth noting for complex workflows
+      const jobLineNumber = findJobLineNumber(content, jobId);
+      
+      // Only flag if workflow has elevated permissions
+      if (typeof workflow.permissions === 'object' && 
+          (workflow.permissions.contents === 'write' || 
+           workflow.permissions.actions === 'write' ||
+           workflow.permissions.packages === 'write')) {
+        
+        results.push({
+          id: `inherited-permissions-${jobId}`,
+          type: 'security',
+          severity: 'info',
+          title: `Job '${jobId}' inherits workflow permissions`,
+          description: `Job inherits elevated workflow permissions. Consider specifying minimal job-level permissions.`,
+          file: fileName,
+          location: { job: jobId, line: jobLineNumber },
+          suggestion: 'Add explicit permissions block to the job with only the permissions it needs.',
+          links: ['https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idpermissions']
+        });
+      }
+    }
+  });
+  
+  // Check for environment without protection rules reminder
+  Object.entries(workflow.jobs).forEach(([jobId, job]) => {
+    if (job.environment) {
+      const envValue = job.environment;
+      const envName = typeof envValue === 'string' ? envValue : envValue?.name;
+      
+      if (envName && (envName.toLowerCase().includes('prod') || envName.toLowerCase().includes('production'))) {
+        const jobLineNumber = findJobLineNumber(content, jobId);
+        
+        results.push({
+          id: `production-environment-${jobId}`,
+          type: 'security',
+          severity: 'info',
+          title: 'Production environment deployment detected',
+          description: `Job '${jobId}' deploys to production environment '${envName}'. Ensure environment protection rules are configured.`,
+          file: fileName,
+          location: { job: jobId, line: jobLineNumber },
+          suggestion: 'Configure environment protection rules including required reviewers and deployment branches.',
+          links: ['https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment']
+        });
+      }
+    }
+  });
+
   return results;
 }
 
@@ -899,7 +1374,12 @@ export function analyzeSecurityIssuesWithReachability(
   githubContext: GitHubAnalysisContext = {}
 ): { 
   results: SecurityIssueWithReachability[]; 
-  reachabilityStats: any; 
+  reachabilityStats: {
+    totalIssues: number;
+    reachableIssues: number;
+    highRiskIssues: number;
+    mitigatedIssues: number;
+  }; 
   insights: AnalysisResult[] 
 } {
   // First, run the standard security analysis
