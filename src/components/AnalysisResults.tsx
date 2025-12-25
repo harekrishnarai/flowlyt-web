@@ -36,6 +36,7 @@ import NetworkEndpointsView from './charts/NetworkEndpointsView';
 import CLISection from './CLISection';
 import ResultSummaryDashboard from './ResultSummaryDashboard';
 import EmptyState from './EmptyState';
+import Tooltip from './Tooltip';
 
 interface AnalysisResultsProps {
   reports: AnalysisReport[];
@@ -168,6 +169,23 @@ export default function AnalysisResults({ reports, workflowFiles, onNewAnalysis 
   const [itemsPerPage] = useState<number>(5);
   const [showExportMenu, setShowExportMenu] = useState<boolean>(false);
 
+  // Helper function to calculate score based on all issues (same method as ResultSummaryDashboard)
+  const calculateAggregateScore = (reportsToScore: AnalysisReport[]): number => {
+    if (reportsToScore.length === 0) return 0;
+    
+    let critical = 0;
+    let high = 0;
+    
+    reportsToScore.forEach(report => {
+      critical += report.summary.errorCount;
+      high += report.summary.warningCount;
+    });
+
+    const maxPossibleIssues = reportsToScore.length * 50;
+    const totalIssues = reportsToScore.reduce((sum, report) => sum + report.summary.totalIssues, 0);
+    return totalIssues === 0 ? 100 : Math.max(0, Math.round((1 - (critical * 10 + high * 5) / maxPossibleIssues) * 100));
+  };
+
   // Get the list of reports to display based on selection
   const activeReports = useMemo(() => {
     return selectedFile === 'all' 
@@ -180,16 +198,22 @@ export default function AnalysisResults({ reports, workflowFiles, onNewAnalysis 
     if (activeReports.length === 0) return { score: 0, errorCount: 0, warningCount: 0, infoCount: 0 };
     if (activeReports.length === 1) return activeReports[0].summary;
 
-    const total = activeReports.reduce((acc, report) => ({
-      score: acc.score + report.summary.score,
-      errorCount: acc.errorCount + report.summary.errorCount,
-      warningCount: acc.warningCount + report.summary.warningCount,
-      infoCount: acc.infoCount + report.summary.infoCount,
-    }), { score: 0, errorCount: 0, warningCount: 0, infoCount: 0 });
+    // For multiple files, calculate score based on all issues combined (consistent with ResultSummaryDashboard)
+    let totalErrorCount = 0;
+    let totalWarningCount = 0;
+    let totalInfoCount = 0;
+
+    activeReports.forEach(report => {
+      totalErrorCount += report.summary.errorCount;
+      totalWarningCount += report.summary.warningCount;
+      totalInfoCount += report.summary.infoCount;
+    });
 
     return {
-      ...total,
-      score: Math.round(total.score / activeReports.length) // Average score
+      score: calculateAggregateScore(activeReports),
+      errorCount: totalErrorCount,
+      warningCount: totalWarningCount,
+      infoCount: totalInfoCount
     };
   }, [activeReports]);
 
@@ -384,24 +408,25 @@ export default function AnalysisResults({ reports, workflowFiles, onNewAnalysis 
               {/* Tabs */}
               <div className="flex flex-wrap gap-1">
                 {[
-                  { id: 'list', icon: FileText, label: 'Issue List' },
-                  { id: 'charts', icon: BarChart3, label: 'Analytics' },
-                  { id: 'network', icon: Network, label: 'Network' },
-                  { id: 'callgraph', icon: GitCommit, label: 'Call Graph' },
-                  { id: 'reachability', icon: Eye, label: 'Reachability' }
+                  { id: 'list', icon: FileText, label: 'Issue List', tooltip: 'View detailed list of all identified issues' },
+                  { id: 'charts', icon: BarChart3, label: 'Analytics', tooltip: 'View statistical analysis and charts' },
+                  { id: 'network', icon: Network, label: 'Network', tooltip: 'View network endpoints and external calls' },
+                  { id: 'callgraph', icon: GitCommit, label: 'Call Graph', tooltip: 'Visualize action dependencies and calls' },
+                  { id: 'reachability', icon: Eye, label: 'Reachability', tooltip: 'Analyze code reachability paths' }
                 ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id as any)}
-                    className={`h-9 px-3 inline-flex items-center rounded-md text-xs font-medium transition-colors ${
-                      activeTab === tab.id
-                        ? 'bg-blue-500 text-white'
-                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    <tab.icon className="w-3.5 h-3.5 mr-1.5" />
-                    {tab.label}
-                  </button>
+                  <Tooltip key={tab.id} content={tab.tooltip} position="bottom">
+                    <button
+                      onClick={() => setActiveTab(tab.id as any)}
+                      className={`h-9 px-3 inline-flex items-center rounded-md text-xs font-medium transition-colors ${
+                        activeTab === tab.id
+                          ? 'bg-blue-500 text-white'
+                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <tab.icon className="w-3.5 h-3.5 mr-1.5" />
+                      {tab.label}
+                    </button>
+                  </Tooltip>
                 ))}
               </div>
 
@@ -506,26 +531,13 @@ export default function AnalysisResults({ reports, workflowFiles, onNewAnalysis 
                   {/* Score Card - Uses calculated 'summary' which handles single or all files */}
                   <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-6 transition-colors duration-300">
                     <div className="text-center">
-                      <div className={`text-3xl sm:text-4xl font-bold mb-2 ${getScoreColor(summary.score)} transition-colors duration-300`}>
-                        {summary.score}
-                      </div>
+                      <Tooltip content="Individual score for this file - how healthy and secure your workflow is (0-100)" position="bottom">
+                        <div className={`text-3xl sm:text-4xl font-bold mb-2 ${getScoreColor(summary.score)} transition-colors duration-300`}>
+                          {summary.score}
+                        </div>
+                      </Tooltip>
                       <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-3 sm:mb-4 transition-colors duration-300">
                         {selectedFile === 'all' ? 'Average Score' : 'Overall Score'}
-                      </div>
-                      
-                      <div className="space-y-2 text-xs sm:text-sm">
-                        <div className="flex justify-between items-center">
-                          <span className="text-red-600 dark:text-red-400 transition-colors duration-300">Errors</span>
-                          <span className="font-medium text-gray-900 dark:text-gray-100 transition-colors duration-300">{summary.errorCount}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-yellow-600 dark:text-yellow-400 transition-colors duration-300">Warnings</span>
-                          <span className="font-medium text-gray-900 dark:text-gray-100 transition-colors duration-300">{summary.warningCount}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-blue-600 dark:text-blue-400 transition-colors duration-300">Info</span>
-                          <span className="font-medium text-gray-900 dark:text-gray-100 transition-colors duration-300">{summary.infoCount}</span>
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -545,18 +557,30 @@ export default function AnalysisResults({ reports, workflowFiles, onNewAnalysis 
                         const count = activeReports.flatMap(r => r.results).filter(r => r.type === type).length;
                         if (count === 0) return null;
                         
+                        const typeDescriptions: Record<string, string> = {
+                          security: 'Security vulnerabilities and best practices',
+                          performance: 'Performance optimization recommendations',
+                          'best-practice': 'Code quality and industry best practices',
+                          dependency: 'Issues with action dependencies',
+                          structure: 'Workflow structure and organization'
+                        };
+                        
                         return (
-                          <label key={type} className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={selectedTypes.has(type)}
-                              onChange={() => toggleFilter(selectedTypes, setSelectedTypes, type)}
-                              className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-700 transition-colors duration-300 flex-shrink-0"
-                            />
-                            <Icon className={`w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0 ${config.color.replace('text-', 'text-').replace('-600', '-600 dark:text-').replace('-600', '-400')}`} />
-                            <span className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 flex-1 min-w-0 truncate transition-colors duration-300">{config.label}</span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400 transition-colors duration-300 flex-shrink-0">{count}</span>
-                          </label>
+                          <div key={type} className="w-full">
+                            <Tooltip content={typeDescriptions[type]} position="right">
+                              <label className="flex items-center gap-2 w-full">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedTypes.has(type)}
+                                  onChange={() => toggleFilter(selectedTypes, setSelectedTypes, type)}
+                                  className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-700 transition-colors duration-300 flex-shrink-0"
+                                />
+                                <Icon className={`w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0 ${config.color.replace('text-', 'text-').replace('-600', '-600 dark:text-').replace('-600', '-400')}`} />
+                                <span className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 flex-1 min-w-0 truncate transition-colors duration-300">{config.label}</span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400 transition-colors duration-300 flex-shrink-0">{count}</span>
+                              </label>
+                            </Tooltip>
+                          </div>
                         );
                       })}
                     </div>
@@ -570,18 +594,28 @@ export default function AnalysisResults({ reports, workflowFiles, onNewAnalysis 
                         const count = activeReports.flatMap(r => r.results).filter(r => r.severity === severity).length;
                         if (count === 0) return null;
                         
+                        const severityDescriptions: Record<string, string> = {
+                          error: 'High-priority issues requiring immediate action',
+                          warning: 'Medium-priority issues that should be addressed',
+                          info: 'Informational messages and suggestions'
+                        };
+                        
                         return (
-                          <label key={severity} className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={selectedSeverities.has(severity)}
-                              onChange={() => toggleFilter(selectedSeverities, setSelectedSeverities, severity)}
-                              className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-700 transition-colors duration-300 flex-shrink-0"
-                            />
-                            <Icon className={`w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0 ${config.color.replace('text-', 'text-').replace('-600', '-600 dark:text-').replace('-600', '-400')}`} />
-                            <span className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 flex-1 min-w-0 truncate capitalize transition-colors duration-300">{severity}</span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400 transition-colors duration-300 flex-shrink-0">{count}</span>
-                          </label>
+                          <div key={severity} className="w-full">
+                            <Tooltip content={severityDescriptions[severity]} position="right">
+                              <label className="flex items-center gap-2 w-full">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedSeverities.has(severity)}
+                                  onChange={() => toggleFilter(selectedSeverities, setSelectedSeverities, severity)}
+                                  className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-700 transition-colors duration-300 flex-shrink-0"
+                                />
+                                <Icon className={`w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0 ${config.color.replace('text-', 'text-').replace('-600', '-600 dark:text-').replace('-600', '-400')}`} />
+                                <span className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 flex-1 min-w-0 truncate capitalize transition-colors duration-300">{severity}</span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400 transition-colors duration-300 flex-shrink-0">{count}</span>
+                              </label>
+                            </Tooltip>
+                          </div>
                         );
                       })}
                     </div>
@@ -637,22 +671,28 @@ export default function AnalysisResults({ reports, workflowFiles, onNewAnalysis 
                               onClick={() => toggleExpanded(result.id)}
                             >
                               <div className="flex items-start gap-3">
-                                <div className={`p-1.5 sm:p-2 rounded-lg flex-shrink-0 ${severityInfo.bg.replace('bg-', 'bg-').replace('-50', '-50 dark:bg-opacity-20')}`}>
-                                  <SeverityIcon className={`w-4 h-4 sm:w-5 sm:h-5 ${severityInfo.color.replace('text-', 'text-').replace('-600', '-600 dark:text-').replace('-600', '-400')}`} />
-                                </div>
+                                <Tooltip content={`${result.severity.charAt(0).toUpperCase() + result.severity.slice(1)} severity`} position="right">
+                                  <div className={`p-1.5 sm:p-2 rounded-lg flex-shrink-0 cursor-help ${severityInfo.bg.replace('bg-', 'bg-').replace('-50', '-50 dark:bg-opacity-20')}`}>
+                                    <SeverityIcon className={`w-4 h-4 sm:w-5 sm:h-5 ${severityInfo.color.replace('text-', 'text-').replace('-600', '-600 dark:text-').replace('-600', '-400')}`} />
+                                  </div>
+                                </Tooltip>
                                 
                                 <div className="min-w-0 flex-1">
                                   <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-2">
                                     <h3 className="font-medium text-gray-900 dark:text-gray-100 transition-colors duration-300 text-sm sm:text-base break-words">{result.title}</h3>
-                                    <div className="flex items-center gap-1 flex-shrink-0">
-                                      <TypeIcon className={`w-3 h-3 sm:w-4 sm:h-4 ${typeInfo.color.replace('text-', 'text-').replace('-600', '-600 dark:text-').replace('-600', '-400')}`} />
-                                      <span className="text-xs text-gray-500 dark:text-gray-400 transition-colors duration-300">{typeInfo.label}</span>
-                                    </div>
+                                    <Tooltip content={typeConfig[result.type].label} position="top">
+                                      <div className="flex items-center gap-1 flex-shrink-0 cursor-help">
+                                        <TypeIcon className={`w-3 h-3 sm:w-4 sm:h-4 ${typeInfo.color.replace('text-', 'text-').replace('-600', '-600 dark:text-').replace('-600', '-400')}`} />
+                                        <span className="text-xs text-gray-500 dark:text-gray-400 transition-colors duration-300">{typeInfo.label}</span>
+                                      </div>
+                                    </Tooltip>
                                     {/* Show filename if 'All Files' is selected */}
                                     {selectedFile === 'all' && sourceReport && (
-                                      <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                                        {sourceReport.fileName}
-                                      </span>
+                                      <Tooltip content={`Part of ${sourceReport.fileName}`} position="top">
+                                        <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 cursor-help">
+                                          {sourceReport.fileName}
+                                        </span>
+                                      </Tooltip>
                                     )}
                                   </div>
                                   

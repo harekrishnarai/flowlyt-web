@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { GitBranch, Github, Sparkles } from 'lucide-react';
+import { GitBranch, Github, Sparkles, Star, X } from 'lucide-react';
 import FileUpload from './components/FileUpload';
 import AnalysisResults from './components/AnalysisResults';
 import ThemeToggle from './components/ThemeToggle';
@@ -19,6 +19,10 @@ function App() {
   const [analysisStage, setAnalysisStage] = useState<'parsing' | 'analyzing' | 'complete'>('parsing');
   const [showStarPopup, setShowStarPopup] = useState(false);
   const [hasScrolled, setHasScrolled] = useState(false);
+  const [showStarBanner, setShowStarBanner] = useState(() => {
+    const dismissed = localStorage.getItem('flowlyt-star-banner-dismissed');
+    return !dismissed;
+  });
 
   // Handle scroll detection for star popup
   useEffect(() => {
@@ -113,11 +117,49 @@ function App() {
     setAnalysisProgress({ current: 0, total: 0 });
     setShowStarPopup(false);
     setHasScrolled(false);
+    // Clear the dismiss flag so popup can show on next scroll
+    sessionStorage.removeItem('flowlyt-star-dismissed');
   }, []);
 
   return (
     <ThemeProvider>
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-purple-900 dark:to-rose-900 transition-colors duration-300 overflow-x-hidden">
+        {/* Star Banner */}
+        {showStarBanner && (
+          <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <p className="text-sm text-gray-700 dark:text-gray-300">
+                    If Flowlyt helps you, consider starring the repo
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <a
+                    href="https://github.com/harekrishnarai/flowlyt"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-3 py-1 bg-gray-200 dark:bg-slate-700 text-gray-900 dark:text-gray-100 rounded hover:bg-gray-300 dark:hover:bg-slate-600 transition-colors text-xs font-medium"
+                  >
+                    <Star className="w-4 h-4" />
+                    Star
+                  </a>
+                  <button
+                    onClick={() => {
+                      setShowStarBanner(false);
+                      localStorage.setItem('flowlyt-star-banner-dismissed', 'true');
+                    }}
+                    className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded transition-colors"
+                    aria-label="Dismiss"
+                  >
+                    <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-b border-white/20 dark:border-purple-800/20 sticky top-0 z-50 transition-colors duration-300">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">

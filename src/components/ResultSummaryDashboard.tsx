@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { AnalysisReport } from '../types/workflow';
+import Tooltip from './Tooltip';
 
 interface ResultSummaryDashboardProps {
   reports: AnalysisReport[];
@@ -76,16 +77,18 @@ export default function ResultSummaryDashboard({ reports }: ResultSummaryDashboa
           
           {/* Security Score - Left aligned */}
           <div className="flex items-center space-x-4 w-full lg:w-auto justify-center lg:justify-start">
-            <div className={`w-20 h-20 rounded-full bg-gradient-to-br ${getScoreBgColor(stats.securityScore)} p-1 shadow-md flex-shrink-0`}>
-              <div className="w-full h-full rounded-full bg-white dark:bg-gray-900 flex items-center justify-center">
-                <div className="text-center">
-                  <div className={`text-2xl font-bold ${getScoreColor(stats.securityScore)}`}>
-                    {stats.securityScore}
+            <Tooltip content="Score based on severity and number of issues found" position="right">
+              <div className={`w-20 h-20 rounded-full bg-gradient-to-br ${getScoreBgColor(stats.securityScore)} p-1 shadow-md flex-shrink-0`}>
+                <div className="w-full h-full rounded-full bg-white dark:bg-gray-900 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className={`text-2xl font-bold ${getScoreColor(stats.securityScore)}`}>
+                      {stats.securityScore}
+                    </div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400">Score</div>
                   </div>
-                  <div className="text-xs text-gray-600 dark:text-gray-400">Score</div>
                 </div>
               </div>
-            </div>
+            </Tooltip>
             <div className="flex-1 min-w-[180px]"> {/* Added min-width to prevent text wrapping awkwardly */}
               <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">
                 Security Score
@@ -99,30 +102,42 @@ export default function ResultSummaryDashboard({ reports }: ResultSummaryDashboa
           {/* Key Stats - Right aligned */}
           {/* CHANGED: Adjusted grid gap and widths to fit content nicely */}
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-x-8 gap-y-4 w-full lg:w-auto text-center lg:text-right">
-            <div className="flex flex-col items-center">
-              <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{stats.filesAnalyzed}</div>
-              <div className="text-xs text-gray-600 dark:text-gray-400">Files</div>
-            </div>
-            <div className="flex flex-col items-center">
-              <div className="text-xl font-bold text-gray-900 dark:text-gray-100">{stats.totalIssues}</div>
-              <div className="text-xs text-gray-600 dark:text-gray-400">Issues</div>
-            </div>
-            <div className="flex flex-col items-center">
-              <div className="text-xl font-bold text-red-600 dark:text-red-400">{stats.critical}</div>
-              <div className="text-xs text-gray-600 dark:text-gray-400">Critical</div>
-            </div>
-            <div className="flex flex-col items-center">
-              <div className="text-xl font-bold text-yellow-600 dark:text-yellow-400">{stats.high}</div>
-              <div className="text-xs text-gray-600 dark:text-gray-400">Warnings</div>
-            </div>
-            <div className="flex flex-col items-center">
-              <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{stats.typeCounts.security}</div>
-              <div className="text-xs text-gray-600 dark:text-gray-400">Security</div>
-            </div>
-            <div className="flex flex-col items-center">
-              <div className="text-xl font-bold text-purple-600 dark:text-purple-400">{stats.typeCounts.performance}</div>
-              <div className="text-xs text-gray-600 dark:text-gray-400">Performance</div>
-            </div>
+            <Tooltip content="Total workflow files analyzed" position="top">
+              <div className="flex flex-col items-center">
+                <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{stats.filesAnalyzed}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400">Files</div>
+              </div>
+            </Tooltip>
+            <Tooltip content="Total findings across all files" position="top">
+              <div className="flex flex-col items-center">
+                <div className="text-xl font-bold text-gray-900 dark:text-gray-100">{stats.totalIssues}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400">Issues</div>
+              </div>
+            </Tooltip>
+            <Tooltip content="High-severity issues requiring immediate attention" position="top">
+              <div className="flex flex-col items-center">
+                <div className="text-xl font-bold text-red-600 dark:text-red-400">{stats.critical}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400">Critical</div>
+              </div>
+            </Tooltip>
+            <Tooltip content="Medium-severity issues that should be addressed" position="top">
+              <div className="flex flex-col items-center">
+                <div className="text-xl font-bold text-yellow-600 dark:text-yellow-400">{stats.high}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400">Warnings</div>
+              </div>
+            </Tooltip>
+            <Tooltip content="Security-related findings" position="top">
+              <div className="flex flex-col items-center">
+                <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{stats.typeCounts.security}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400">Security</div>
+              </div>
+            </Tooltip>
+            <Tooltip content="Performance optimization recommendations" position="top">
+              <div className="flex flex-col items-center">
+                <div className="text-xl font-bold text-purple-600 dark:text-purple-400">{stats.typeCounts.performance}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400">Performance</div>
+              </div>
+            </Tooltip>
           </div>
           
         </div>
