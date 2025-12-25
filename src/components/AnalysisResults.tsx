@@ -28,6 +28,7 @@ import AnalysisCharts from './charts/AnalysisCharts';
 import CallGraphVisualization from './charts/CallGraphVisualization';
 import { ReachabilityAnalysis } from './charts/ReachabilityAnalysis';
 import NetworkEndpointsView from './charts/NetworkEndpointsView';
+import CLISection from './CLISection';
 
 interface AnalysisResultsProps {
   reports: AnalysisReport[];
@@ -668,6 +669,9 @@ export default function AnalysisResults({ reports, workflowFiles, onNewAnalysis 
           )}
         </div>
       )}
+      
+      {/* CLI Section - shown after results */}
+      <CLISection />
     </div>
   );
 }

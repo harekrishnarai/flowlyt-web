@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { GitBranch, Github, Sparkles } from 'lucide-react';
 import FileUpload from './components/FileUpload';
 import AnalysisResults from './components/AnalysisResults';
 import ThemeToggle from './components/ThemeToggle';
+import GitHubStarPopup from './components/GitHubStarPopup';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { WorkflowFile, AnalysisReport } from './types/workflow';
 import { parseWorkflowFile } from './utils/yamlParser';
@@ -13,6 +14,34 @@ function App() {
   const [analysisReports, setAnalysisReports] = useState<AnalysisReport[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState({ current: 0, total: 0 });
+  const [showStarPopup, setShowStarPopup] = useState(false);
+  const [hasScrolled, setHasScrolled] = useState(false);
+
+  // Handle scroll detection for star popup
+  useEffect(() => {
+    if (analysisReports.length === 0 || hasScrolled) return;
+
+    const handleScroll = () => {
+      // Check if user has scrolled down at least 300px
+      if (window.scrollY > 300) {
+        setHasScrolled(true);
+        
+        // Check if popup should be shown (not already starred or dismissed)
+        const hasStarred = localStorage.getItem('flowlyt-cli-starred');
+        const hasDismissed = sessionStorage.getItem('flowlyt-star-dismissed');
+        
+        if (!hasStarred && !hasDismissed) {
+          // Show popup after a small delay
+          setTimeout(() => {
+            setShowStarPopup(true);
+          }, 500);
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [analysisReports.length, hasScrolled]);
 
   const handleFilesUploaded = useCallback(async (files: WorkflowFile[]) => {
     setIsAnalyzing(true);
@@ -71,6 +100,8 @@ function App() {
     setAnalysisReports([]);
     setIsAnalyzing(false);
     setAnalysisProgress({ current: 0, total: 0 });
+    setShowStarPopup(false);
+    setHasScrolled(false);
   }, []);
 
   return (
@@ -208,6 +239,9 @@ function App() {
             </div>
           </div>
         </footer>
+
+        {/* GitHub Star Popup */}
+        <GitHubStarPopup show={showStarPopup} onClose={() => setShowStarPopup(false)} />
       </div>
     </ThemeProvider>
   );
