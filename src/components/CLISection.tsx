@@ -78,7 +78,7 @@ export default function CLISection() {
                 # Install via Go
               </code>
               <code className="text-sm text-gray-300 font-mono block break-all">
-                GOPRIVATE=github.com/harekrishnarai/flowlyt go install github.com/harekrishnarai/flowlyt/cmd/flowlyt@latest
+                go install github.com/harekrishnarai/flowlyt/cmd/flowlyt@latest
               </code>
             </div>
             <div className="bg-gray-900 dark:bg-gray-950 rounded-lg p-4">
