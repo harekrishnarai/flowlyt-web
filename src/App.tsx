@@ -4,6 +4,7 @@ import FileUpload from './components/FileUpload';
 import AnalysisResults from './components/AnalysisResults';
 import ThemeToggle from './components/ThemeToggle';
 import GitHubStarPopup from './components/GitHubStarPopup';
+import EnhancedProgress from './components/EnhancedProgress';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { WorkflowFile, AnalysisReport } from './types/workflow';
 import { parseWorkflowFile } from './utils/yamlParser';
@@ -14,6 +15,8 @@ function App() {
   const [analysisReports, setAnalysisReports] = useState<AnalysisReport[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState({ current: 0, total: 0 });
+  const [currentFileName, setCurrentFileName] = useState<string>('');
+  const [analysisStage, setAnalysisStage] = useState<'parsing' | 'analyzing' | 'complete'>('parsing');
   const [showStarPopup, setShowStarPopup] = useState(false);
   const [hasScrolled, setHasScrolled] = useState(false);
 
@@ -45,6 +48,7 @@ function App() {
 
   const handleFilesUploaded = useCallback(async (files: WorkflowFile[]) => {
     setIsAnalyzing(true);
+    setAnalysisStage('parsing');
     setAnalysisProgress({ current: 0, total: files.length });
     setWorkflowFiles([]);
     setAnalysisReports([]);
@@ -53,9 +57,11 @@ function App() {
       const allParsedFiles: WorkflowFile[] = [];
       const batchSize = 3;
 
+      // Parsing stage
       for (let i = 0; i < files.length; i += batchSize) {
         const batch = files.slice(i, i + batchSize);
         const parsedBatch = await Promise.all(batch.map(async (file) => {
+          setCurrentFileName(file.name);
           return new Promise<WorkflowFile>((resolve) => {
             setTimeout(() => resolve(parseWorkflowFile(file)), 0);
           });
@@ -67,10 +73,13 @@ function App() {
         if (i + batchSize < files.length) await new Promise(r => setTimeout(r, 10));
       }
 
+      // Analysis stage
+      setAnalysisStage('analyzing');
       const allReports: AnalysisReport[] = [];
       for (let i = 0; i < allParsedFiles.length; i += batchSize) {
         const batch = allParsedFiles.slice(i, i + batchSize);
         const analyzedBatch = await Promise.all(batch.map(async (file) => {
+          setCurrentFileName(file.name);
           return new Promise<AnalysisReport>((resolve) => {
             setTimeout(() => resolve(analyzeWorkflow(file)), 0);
           });
@@ -82,6 +91,8 @@ function App() {
 
         if (i + batchSize < allParsedFiles.length) await new Promise(r => setTimeout(r, 10));
       }
+      
+      setAnalysisStage('complete');
     } catch (err) {
       console.error(err);
     } finally {
@@ -203,22 +214,12 @@ function App() {
                 <FileUpload onFilesUploaded={handleFilesUploaded} uploadedFiles={workflowFiles} onRemoveFile={handleRemoveFile} />
 
                 {isAnalyzing && (
-                  <div className="mt-6 text-center">
-                    <div className="inline-flex items-center space-x-2 text-blue-600 dark:text-purple-400 transition-colors duration-300">
-                      <div className="animate-spin rounded-full h-4 w-4 sm:h-5 sm:w-5 border-2 border-blue-600 dark:border-purple-400 border-t-transparent" />
-                      <span className="font-medium text-sm sm:text-base">
-                        {analysisProgress.total > 0 ? `Analyzing workflows... (${analysisProgress.current}/${analysisProgress.total})` : 'Analyzing workflows...'}
-                      </span>
-                    </div>
-
-                    {analysisProgress.total > 0 && (
-                      <div className="mt-3 w-full max-w-md mx-auto px-4 sm:px-0">
-                        <div className="bg-gray-200 dark:bg-slate-700 rounded-full h-2 transition-colors duration-300">
-                          <div className="bg-blue-600 dark:bg-purple-400 h-2 rounded-full transition-all duration-300" style={{ width: `${(analysisProgress.current / analysisProgress.total) * 100}%` }} />
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <EnhancedProgress 
+                    current={analysisProgress.current}
+                    total={analysisProgress.total}
+                    currentFileName={currentFileName}
+                    stage={analysisStage}
+                  />
                 )}
               </div>
             </div>
