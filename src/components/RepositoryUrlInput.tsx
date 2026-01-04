@@ -414,22 +414,22 @@ export default function RepositoryUrlInput({ onFilesExtracted }: RepositoryUrlIn
               type="button"
               onClick={() => setProvider(item.id)}
               disabled={item.disabled}
-              className={`group w-full flex items-center justify-between px-4 sm:px-5 py-4 border-b border-gray-200 dark:border-white/5 text-left border rounded-none first:rounded-t-xl last:rounded-b-xl ${
+              className={`group w-full flex items-center justify-between px-3 sm:px-4 md:px-5 py-3 sm:py-4 border-b border-gray-200 dark:border-white/5 text-left border rounded-none first:rounded-t-xl last:rounded-b-xl ${
                 provider === item.id
                   ? 'bg-teal-50 dark:bg-white/10 ring-1 ring-teal-300/40 border-teal-300/50'
                   : 'border-transparent hover:bg-gray-50 dark:hover:bg-white/5 focus-visible:bg-gray-50 dark:focus-visible:bg-white/5 hover:border-gray-300 dark:hover:border-white/10 focus-visible:border-gray-400 dark:focus-visible:border-white/15'
               } ${item.disabled ? 'opacity-60 cursor-not-allowed' : ''} ${idx === providerItems.length - 1 ? 'border-b-0' : ''} transition-colors duration-300`}
             >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-gray-200 dark:bg-white/5 flex items-center justify-center text-gray-900 dark:text-white transition-colors duration-300">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gray-200 dark:bg-white/5 flex items-center justify-center text-gray-900 dark:text-white transition-colors duration-300 flex-shrink-0">
                   {item.icon}
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white transition-colors duration-300">{item.label}</p>
-                  <p className="text-xs text-gray-600 dark:text-slate-400 transition-colors duration-300">{item.desc}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white transition-colors duration-300">{item.label}</p>
+                  <p className="text-[10px] sm:text-xs text-gray-600 dark:text-slate-400 transition-colors duration-300 truncate">{item.desc}</p>
                 </div>
               </div>
-              <ArrowRight className="w-4 h-4 text-gray-500 dark:text-slate-400 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-focus-visible:opacity-100 group-focus-visible:translate-x-0 transition-all duration-150" />
+              <ArrowRight className="w-4 h-4 text-gray-500 dark:text-slate-400 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-focus-visible:opacity-100 group-focus-visible:translate-x-0 transition-all duration-150 flex-shrink-0" />
             </button>
           ))}
         </div>
@@ -486,12 +486,12 @@ export default function RepositoryUrlInput({ onFilesExtracted }: RepositoryUrlIn
       {showRepoModal && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-0 overflow-y-auto bg-black/70 backdrop-blur-sm">
           <div className="absolute inset-0" onClick={() => !isLoading && setShowRepoModal(false)}></div>
-          <div className="relative bg-white dark:bg-slate-900 border-0 sm:border sm:border-gray-300 sm:dark:border-slate-800 sm:rounded-xl shadow-2xl w-full h-full sm:h-auto sm:max-w-3xl sm:my-8 p-6 sm:p-8 space-y-4 transition-colors duration-300 overflow-y-auto">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400 transition-colors duration-300">Step {modalStep} of 2</p>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white transition-colors duration-300">{provider === 'gitlab' ? 'GitLab' : 'GitHub'} Application</h3>
-                <p className="text-xs text-gray-600 dark:text-slate-400 transition-colors duration-300">Provide a link to your {provider === 'gitlab' ? 'GitLab' : 'GitHub'} repository</p>
+          <div className="relative bg-white dark:bg-slate-900 border-0 sm:border sm:border-gray-300 sm:dark:border-slate-800 sm:rounded-xl shadow-2xl w-full h-full sm:h-auto sm:max-w-3xl sm:my-8 p-4 sm:p-6 md:p-8 space-y-3 sm:space-y-4 transition-colors duration-300 overflow-y-auto">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] sm:text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400 transition-colors duration-300">Step {modalStep} of 2</p>
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white transition-colors duration-300 truncate">{provider === 'gitlab' ? 'GitLab' : 'GitHub'} Application</h3>
+                <p className="text-xs text-gray-600 dark:text-slate-400 transition-colors duration-300 truncate">Provide a link to your {provider === 'gitlab' ? 'GitLab' : 'GitHub'} repository</p>
               </div>
               <button
                 type="button"
@@ -504,17 +504,17 @@ export default function RepositoryUrlInput({ onFilesExtracted }: RepositoryUrlIn
 
             {modalStep === 1 && (
               <>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="sm:col-span-2 space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+                  <div className="sm:col-span-2 space-y-1.5 sm:space-y-2">
                     <label className="block text-xs font-medium text-gray-700 dark:text-slate-200 transition-colors duration-300">Repository URL</label>
                     <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <div className="absolute inset-y-0 left-0 pl-2.5 sm:pl-3 flex items-center pointer-events-none">
                         {detectedType === 'github' ? (
-                          <Github className="h-5 w-5 text-teal-300" />
+                          <Github className="h-4 w-4 sm:h-5 sm:w-5 text-teal-300" />
                         ) : detectedType === 'gitlab' ? (
-                          <Gitlab className="h-5 w-5 text-orange-400" />
+                          <Gitlab className="h-4 w-4 sm:h-5 sm:w-5 text-orange-400" />
                         ) : (
-                          <GitBranch className="h-5 w-5 text-slate-500" />
+                          <GitBranch className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500" />
                         )}
                       </div>
                       <input
@@ -522,25 +522,25 @@ export default function RepositoryUrlInput({ onFilesExtracted }: RepositoryUrlIn
                         value={url}
                         onChange={handleUrlChange}
                         placeholder={placeholderByProvider}
-                        className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-teal-300 focus:border-teal-300 text-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-colors duration-300"
+                        className="block w-full pl-8 sm:pl-10 pr-2 sm:pr-3 py-2 sm:py-2.5 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-teal-300 focus:border-teal-300 text-xs sm:text-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-colors duration-300"
                         disabled={isLoading}
                       />
                     </div>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5 sm:space-y-2">
                     <label className="block text-xs font-medium text-gray-700 dark:text-slate-200 transition-colors duration-300">Visibility</label>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
                       <button
                         type="button"
                         onClick={() => { setVisibility('public'); setShowTokenInput(false); setGithubToken(''); }}
-                        className={`px-3 py-2 rounded-lg border transition-colors duration-300 ${visibility === 'public' ? 'border-teal-300 text-gray-900 dark:text-white bg-teal-50 dark:bg-white/5' : 'border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-900'}`}
+                        className={`px-2 sm:px-3 py-2 rounded-lg border text-xs sm:text-sm transition-colors duration-300 ${visibility === 'public' ? 'border-teal-300 text-gray-900 dark:text-white bg-teal-50 dark:bg-white/5' : 'border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-900'}`}
                       >
                         Public
                       </button>
                       <button
                         type="button"
                         onClick={() => { setVisibility('private'); setShowTokenInput(true); }}
-                        className={`px-3 py-2 rounded-lg border transition-colors duration-300 ${visibility === 'private' ? 'border-teal-300 text-gray-900 dark:text-white bg-teal-50 dark:bg-white/5' : 'border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-900'}`}
+                        className={`px-2 sm:px-3 py-2 rounded-lg border text-xs sm:text-sm transition-colors duration-300 ${visibility === 'private' ? 'border-teal-300 text-gray-900 dark:text-white bg-teal-50 dark:bg-white/5' : 'border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-900'}`}
                       >
                         Private
                       </button>
@@ -645,7 +645,7 @@ export default function RepositoryUrlInput({ onFilesExtracted }: RepositoryUrlIn
                   <button
                     type="button"
                     onClick={() => !isLoading && setShowRepoModal(false)}
-                    className="text-sm text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white transition-colors duration-300"
+                    className="text-xs sm:text-sm text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white transition-colors duration-300 px-2 py-1.5"
                   >
                     Back
                   </button>
@@ -653,7 +653,7 @@ export default function RepositoryUrlInput({ onFilesExtracted }: RepositoryUrlIn
                     type="button"
                     onClick={loadRepoDetails}
                     disabled={!url.trim() || detectedType === 'unknown' || detailsLoading}
-                    className="inline-flex items-center px-5 py-2.5 bg-gradient-to-r from-emerald-300 to-cyan-400 text-slate-900 font-semibold rounded-lg hover:from-emerald-200 hover:to-cyan-300 disabled:opacity-50"
+                    className="inline-flex items-center px-3 sm:px-5 py-2 sm:py-2.5 bg-gradient-to-r from-emerald-300 to-cyan-400 text-slate-900 text-xs sm:text-sm font-semibold rounded-lg hover:from-emerald-200 hover:to-cyan-300 disabled:opacity-50"
                   >
                     {detailsLoading ? 'Fetching…' : 'Fetch & continue'}
                   </button>
@@ -674,38 +674,38 @@ export default function RepositoryUrlInput({ onFilesExtracted }: RepositoryUrlIn
                           setDetailsLoaded(false);
                           loadRepoDetails(e.target.value);
                         }}
-                        className="w-full appearance-none pl-3 pr-8 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-sm text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-300 focus:border-teal-300 h-[52px] transition-colors duration-300"
+                        className="w-full appearance-none pl-2 sm:pl-3 pr-7 sm:pr-8 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-xs sm:text-sm text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-300 focus:border-teal-300 h-11 sm:h-[52px] transition-colors duration-300"
                       >
                         {branches.map((b) => (
                           <option key={b} value={b}>{b}</option>
                         ))}
                       </select>
-                      <ChevronDown className="w-4 h-4 text-gray-500 dark:text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none transition-colors duration-300" />
+                      <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500 dark:text-slate-400 absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 pointer-events-none transition-colors duration-300" />
                     </div>
                   </div>
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-medium text-gray-700 dark:text-slate-200 mb-1 transition-colors duration-300">Latest commit</label>
-                    <div className="flex items-center gap-2.5 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-800 rounded-lg px-3 h-[52px] transition-colors duration-300">
+                    <div className="flex items-center gap-1.5 sm:gap-2.5 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-800 rounded-lg px-2 sm:px-3 h-11 sm:h-[52px] transition-colors duration-300">
                       {latestCommit?.avatarUrl ? (
                         <img
                           src={latestCommit.avatarUrl}
                           alt={latestCommit.author || 'avatar'}
-                          className="w-8 h-8 rounded-full border border-gray-300 dark:border-slate-700 object-cover flex-shrink-0 transition-colors duration-300"
+                          className="w-6 h-6 sm:w-8 sm:h-8 rounded-full border border-gray-300 dark:border-slate-700 object-cover flex-shrink-0 transition-colors duration-300"
                           onError={(e) => {
                             (e.target as HTMLImageElement).style.display = 'none';
                             setLatestCommit((prev) => (prev ? { ...prev, avatarUrl: undefined } : prev));
                           }}
                         />
                       ) : (
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-300 to-cyan-400 text-slate-900 text-xs font-semibold flex items-center justify-center flex-shrink-0">
+                        <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-emerald-300 to-cyan-400 text-slate-900 text-[10px] sm:text-xs font-semibold flex items-center justify-center flex-shrink-0">
                           {latestCommit?.author ? latestCommit.author[0]?.toUpperCase() : '?'}
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-gray-900 dark:text-slate-200 font-medium truncate transition-colors duration-300">{latestCommit?.author || 'Pending commit fetch'}</p>
-                        <p className="text-xs text-gray-600 dark:text-slate-400 truncate leading-tight transition-colors duration-300">{latestCommit?.message || 'Load repo details to see latest commit'}</p>
+                        <p className="text-[10px] sm:text-xs text-gray-900 dark:text-slate-200 font-medium truncate transition-colors duration-300">{latestCommit?.author || 'Pending commit fetch'}</p>
+                        <p className="text-[10px] sm:text-xs text-gray-600 dark:text-slate-400 truncate leading-tight transition-colors duration-300">{latestCommit?.message || 'Load repo details to see latest commit'}</p>
                       </div>
-                      <div className="text-xs text-gray-600 dark:text-slate-400 whitespace-nowrap flex-shrink-0 transition-colors duration-300">{timeAgo(latestCommit?.committedDate)}</div>
+                      <div className="text-[10px] sm:text-xs text-gray-600 dark:text-slate-400 whitespace-nowrap flex-shrink-0 transition-colors duration-300 hidden sm:block">{timeAgo(latestCommit?.committedDate)}</div>
                     </div>
                   </div>
                 </div>
@@ -789,7 +789,7 @@ export default function RepositoryUrlInput({ onFilesExtracted }: RepositoryUrlIn
                   <button
                     type="button"
                     onClick={() => setModalStep(1)}
-                    className="text-sm text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white transition-colors duration-300"
+                    className="text-xs sm:text-sm text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white transition-colors duration-300 px-2 py-1.5"
                   >
                     Back
                   </button>
@@ -797,7 +797,7 @@ export default function RepositoryUrlInput({ onFilesExtracted }: RepositoryUrlIn
                     type="button"
                     onClick={startScan}
                     disabled={isLoading || !url.trim() || detectedType === 'unknown' || !detailsLoaded}
-                    className="inline-flex items-center px-5 py-2.5 bg-gradient-to-r from-emerald-300 to-cyan-400 text-slate-900 font-semibold rounded-lg hover:from-emerald-200 hover:to-cyan-300 disabled:opacity-50"
+                    className="inline-flex items-center px-3 sm:px-5 py-2 sm:py-2.5 bg-gradient-to-r from-emerald-300 to-cyan-400 text-slate-900 text-xs sm:text-sm font-semibold rounded-lg hover:from-emerald-200 hover:to-cyan-300 disabled:opacity-50"
                   >
                     {isLoading ? 'Extracting...' : 'Start Scan'}
                   </button>
