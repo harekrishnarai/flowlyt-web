@@ -5,9 +5,22 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['"Space Grotesk"', 'Inter', 'system-ui', 'sans-serif'],
+        body: ['"Manrope"', 'Inter', 'system-ui', 'sans-serif'],
       },
       colors: {
+        accent: {
+          50: '#e6fff6',
+          100: '#b8ffe5',
+          200: '#80ffd1',
+          300: '#4df5ba',
+          400: '#2af598',
+          500: '#16e38a',
+          600: '#0fc47a',
+          700: '#0a9e65',
+          800: '#0a7b52',
+          900: '#0a5f42',
+        },
         primary: {
           50: '#eff6ff',
           100: '#dbeafe',

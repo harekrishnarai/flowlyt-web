@@ -12,7 +12,7 @@ interface FileUploadProps {
 export default function FileUpload({ onFilesUploaded, uploadedFiles, onRemoveFile }: FileUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'upload' | 'repository'>('upload');
+  const [activeTab, setActiveTab] = useState<'upload' | 'repository'>('repository');
 
   const validateFile = (file: File): string | null => {
     const isWorkflowFile = file.name.match(/\.(yml|yaml)$/i);
@@ -89,45 +89,47 @@ export default function FileUpload({ onFilesUploaded, uploadedFiles, onRemoveFil
   }, [onFilesUploaded]);
 
   return (
-    <div className="w-full space-y-4 sm:space-y-6 overflow-hidden">
+    <div className="w-full space-y-3 sm:space-y-3 overflow-hidden">
       {/* Tab Navigation */}
-      <div className="border-b border-gray-200 dark:border-gray-700 transition-colors duration-300">
-        <nav className="-mb-px flex space-x-4 sm:space-x-8 overflow-x-auto" aria-label="Tabs">
-          <button
-            onClick={() => setActiveTab('upload')}
-            className={`py-2 px-1 border-b-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap flex-shrink-0 ${
-              activeTab === 'upload'
-                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
-            }`}
-          >
-            <Upload className="w-3 h-3 sm:w-4 sm:h-4 inline mr-1 sm:mr-2" />
-            Upload Files
-          </button>
+      <div className="border-b border-gray-200 dark:border-white/10 transition-colors duration-300">
+        <nav className="-mb-px flex space-x-2 sm:space-x-4 overflow-x-auto" aria-label="Tabs">
           <button
             onClick={() => setActiveTab('repository')}
-            className={`py-2 px-1 border-b-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap flex-shrink-0 ${
+            className={`py-1.5 px-1 border-b-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap flex-shrink-0 tab-underline ${
               activeTab === 'repository'
-                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
+                ? 'border-teal-300 text-gray-900 dark:text-white tab-underline-active'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-500'
             }`}
           >
             <GitBranch className="w-3 h-3 sm:w-4 sm:h-4 inline mr-1 sm:mr-2" />
             From Repository
           </button>
+          <button
+            onClick={() => setActiveTab('upload')}
+            className={`py-1.5 px-1 border-b-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap flex-shrink-0 tab-underline ${
+              activeTab === 'upload'
+                ? 'border-teal-300 text-gray-900 dark:text-white tab-underline-active'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-500'
+            }`}
+          >
+            <Upload className="w-3 h-3 sm:w-4 sm:h-4 inline mr-1 sm:mr-2" />
+            Upload Files
+          </button>
         </nav>
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'upload' ? (
+      {activeTab === 'repository' ? (
+        <RepositoryUrlInput onFilesExtracted={handleRepositoryFilesExtracted} />
+      ) : (
         <>
           {/* Upload Zone */}
           <div
             className={`
-              relative border-2 border-dashed rounded-xl p-6 sm:p-8 md:p-12 text-center transition-all duration-200 overflow-hidden
+              relative border-2 border-dashed rounded-xl p-4 sm:p-5 md:p-6 text-center transition-all duration-200 overflow-hidden
               ${isDragOver 
-                ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 scale-105' 
-                : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                ? 'border-teal-300/70 bg-white/5 scale-102 shadow-[0_0_0_1px_rgba(56,189,248,0.5)]' 
+                : 'border-slate-600 hover:border-teal-300/70 hover:bg-white/5'
               }
             `}
             onDrop={handleDrop}
@@ -143,32 +145,30 @@ export default function FileUpload({ onFilesUploaded, uploadedFiles, onRemoveFil
               id="file-upload"
             />
             
-            <div className="flex flex-col items-center space-y-3 sm:space-y-4">
-              <div className={`p-3 sm:p-4 rounded-full transition-colors ${isDragOver ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-gray-100 dark:bg-gray-800'}`}>
-                <Upload className={`w-6 h-6 sm:w-8 sm:h-8 ${isDragOver ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'} transition-colors duration-300`} />
+            <div className="flex flex-col items-center space-y-3 sm:space-y-3">
+              <div className={`p-3 sm:p-3.5 rounded-full transition-colors ${isDragOver ? 'bg-teal-500/20' : 'bg-slate-800'}`}>
+                <Upload className={`w-6 h-6 sm:w-7 sm:h-7 ${isDragOver ? 'text-teal-200' : 'text-slate-300'} transition-colors duration-300`} />
               </div>
               
-              <div className="space-y-2 max-w-md mx-auto">
-                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 transition-colors duration-300">
+              <div className="space-y-1.5 max-w-md mx-auto">
+                <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-gray-100 transition-colors duration-300">
                   Drop your CI/CD files here
                 </h3>
-                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 transition-colors duration-300 break-words">
+                <p className="text-xs sm:text-xs text-gray-600 dark:text-gray-400 transition-colors duration-300 break-words">
                   Upload GitHub Actions workflows (.yml/.yaml) or GitLab CI files (.gitlab-ci.yml) to analyze for security, performance, and best practices.
                 </p>
               </div>
               
               <label 
                 htmlFor="file-upload"
-                className="inline-flex items-center px-4 sm:px-6 py-2 sm:py-3 bg-blue-600 dark:bg-blue-700 text-white text-sm sm:text-base font-medium rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors cursor-pointer touch-manipulation min-h-[44px]"
+                className="inline-flex items-center px-4 sm:px-4 py-2 sm:py-2 bg-gradient-to-r from-emerald-300 to-cyan-400 text-slate-900 text-sm sm:text-sm font-semibold rounded-lg hover:from-emerald-200 hover:to-cyan-300 transition-colors cursor-pointer touch-manipulation min-h-[40px] btn-lift"
               >
-                <Upload className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+                <Upload className="w-4 h-4 sm:w-4 sm:h-4 mr-2" />
                 Choose Files
               </label>
             </div>
           </div>
         </>
-      ) : (
-        <RepositoryUrlInput onFilesExtracted={handleRepositoryFilesExtracted} />
       )}
 
       {/* Error Message */}
@@ -185,7 +185,7 @@ export default function FileUpload({ onFilesUploaded, uploadedFiles, onRemoveFil
       {/* Uploaded Files */}
       {uploadedFiles.length > 0 && (
         <div className="space-y-3">
-          <h4 className="font-medium text-gray-900 dark:text-gray-100 transition-colors duration-300 text-sm sm:text-base">
+          <h4 className="font-medium text-gray-900 dark:text-gray-100 transition-colors duration-300 text-sm sm:text-sm">
             {uploadedFiles.some(f => f.source === 'github' || f.source === 'gitlab') ? 'Extracted & Uploaded Files' : 'Uploaded Files'}
           </h4>
           <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">

@@ -70,7 +70,7 @@ export default function ResultSummaryDashboard({ reports }: ResultSummaryDashboa
   return (
     <div className="mb-6">
       {/* Simplified Summary Card */}
-      <div className="bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-800 dark:to-gray-850 rounded-xl border border-blue-200 dark:border-purple-800 p-6 shadow-sm">
+      <div className="bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-800 dark:to-gray-850 rounded-xl p-6 shadow-sm">
         
         {/* CHANGED: Switched from Grid to Flexbox for better vertical alignment */}
         <div className="flex flex-col lg:flex-row items-center justify-between gap-6 lg:gap-12">

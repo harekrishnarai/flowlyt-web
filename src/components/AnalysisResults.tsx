@@ -403,7 +403,7 @@ export default function AnalysisResults({ reports, workflowFiles, onNewAnalysis 
       {activeReports.length > 0 && (
         <div className="space-y-4">
           {/* Top control bar */}
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-3">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
               {/* Tabs */}
               <div className="flex flex-wrap gap-1">

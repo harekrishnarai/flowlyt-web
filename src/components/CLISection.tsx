@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Terminal, Download, Zap, Shield, Code, ExternalLink, CheckCircle, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
+import { Terminal, Download, Zap, Shield, Code, ExternalLink, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function CLISection() {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -9,25 +9,25 @@ export default function CLISection() {
       {/* Header - Always Visible */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 cursor-pointer hover:from-slate-800 hover:via-slate-700 hover:to-slate-800 transition-all duration-300 text-left border-b border-slate-700"
+        className="w-full bg-gradient-to-br from-slate-100 via-slate-50 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 p-6 cursor-pointer hover:from-slate-200 hover:via-slate-100 hover:to-slate-200 dark:hover:from-slate-800 dark:hover:via-slate-700 dark:hover:to-slate-800 transition-all duration-300 text-left border-b border-gray-300 dark:border-slate-700"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <div className="bg-blue-500/10 backdrop-blur-sm rounded-lg p-3 border border-blue-500/30">
-              <Terminal className="w-8 h-8 text-blue-400" />
+              <Terminal className="w-8 h-8 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-slate-100">Flowlyt CLI</h2>
-              <p className="text-slate-400 mt-1 text-sm sm:text-base">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Flowlyt CLI</h2>
+              <p className="text-gray-600 dark:text-slate-400 mt-1 text-sm sm:text-base">
                 Take your workflow analysis to the next level with our command-line tool
               </p>
             </div>
           </div>
           <div className="flex-shrink-0 ml-4">
             {isExpanded ? (
-              <ChevronUp className="w-6 h-6 text-slate-400 transition-transform duration-300" />
+              <ChevronUp className="w-6 h-6 text-gray-500 dark:text-slate-400 transition-transform duration-300" />
             ) : (
-              <ChevronDown className="w-6 h-6 text-slate-400 transition-transform duration-300" />
+              <ChevronDown className="w-6 h-6 text-gray-500 dark:text-slate-400 transition-transform duration-300" />
             )}
           </div>
         </div>
@@ -39,12 +39,12 @@ export default function CLISection() {
           isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
         } overflow-hidden`}
       >
-        <div className="p-6 bg-slate-50 dark:bg-gray-900">
+        <div className="p-6 bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
         <div className="grid md:grid-cols-2 gap-6 mb-6">
           {/* Features */}
           <div>
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4 flex items-center">
-              <Zap className="w-5 h-5 mr-2 text-blue-500" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4 flex items-center">
+              <Zap className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-500" />
               What You Get
             </h3>
             <ul className="space-y-3">
@@ -56,7 +56,7 @@ export default function CLISection() {
                 'Organization-wide vulnerability scanning',
                 'Machine-readable output formats',
               ].map((feature, index) => (
-                <li key={index} className="flex items-start text-sm text-slate-700 dark:text-slate-300">
+                <li key={index} className="flex items-start text-sm text-gray-700 dark:text-slate-300">
                   <CheckCircle className="w-4 h-4 mr-2 text-emerald-500 flex-shrink-0 mt-0.5" />
                   <span>{feature}</span>
                 </li>
@@ -66,23 +66,23 @@ export default function CLISection() {
 
           {/* Quick Start */}
           <div>
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4 flex items-center">
-              <Download className="w-5 h-5 mr-2 text-blue-500" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4 flex items-center">
+              <Download className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-500" />
               Get Started
             </h3>
-            <div className="bg-slate-900 dark:bg-gray-950 rounded-lg p-4 mb-4 border border-slate-700">
-              <code className="text-sm text-emerald-400 font-mono block mb-2">
+            <div className="bg-gray-900 dark:bg-gray-950 rounded-lg p-4 mb-4 border border-gray-700 dark:border-slate-700 transition-colors duration-300">
+              <code className="text-sm text-emerald-500 dark:text-emerald-400 font-mono block mb-2">
                 # Install
               </code>
-              <code className="text-sm text-slate-300 font-mono block break-all">
+              <code className="text-sm text-gray-200 dark:text-slate-300 font-mono block break-all">
                 go install github.com/harekrishnarai/flowlyt/cmd/flowlyt@latest
               </code>
             </div>
-            <div className="bg-slate-900 dark:bg-gray-950 rounded-lg p-4 border border-slate-700">
-              <code className="text-sm text-emerald-400 font-mono block mb-2">
+            <div className="bg-gray-900 dark:bg-gray-950 rounded-lg p-4 border border-gray-700 dark:border-slate-700 transition-colors duration-300">
+              <code className="text-sm text-emerald-500 dark:text-emerald-400 font-mono block mb-2">
                 # Run
               </code>
-              <code className="text-sm text-slate-300 font-mono block">
+              <code className="text-sm text-gray-200 dark:text-slate-300 font-mono block">
                 flowlyt scan --repo .
               </code>
             </div>
@@ -90,12 +90,12 @@ export default function CLISection() {
         </div>
 
         {/* Key Benefits */}
-        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-6 mb-6 border border-blue-200 dark:border-blue-800">
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3 flex items-center">
+        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-6 mb-6 border border-blue-200 dark:border-blue-800 transition-colors duration-300">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-3 flex items-center">
             <Shield className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" />
             Enterprise-Grade Security Analysis
           </h3>
-          <p className="text-sm text-slate-700 dark:text-slate-300 mb-4">
+          <p className="text-sm text-gray-700 dark:text-slate-300 mb-4">
             Comprehensive workflow security scanning with detailed insights and actionable recommendations
           </p>
           <div className="bg-slate-900 dark:bg-gray-950 rounded-lg p-4 border border-slate-700">
