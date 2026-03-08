@@ -112,6 +112,7 @@ export interface AnalysisReport {
 export interface GitHubFile {
   name: string;
   path: string;
+  url?: string;
   download_url: string;
   type: string;
 }

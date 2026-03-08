@@ -6,6 +6,11 @@ export interface GitHubRepoInfo {
   branch?: string;
 }
 
+interface GitHubContentResponse {
+  content?: string;
+  encoding?: string;
+}
+
 export function parseGitHubUrl(url: string): GitHubRepoInfo | null {
   try {
     // Remove trailing slashes and .git
@@ -49,6 +54,13 @@ function buildGitHubHeaders(token?: string): HeadersInit {
   }
   
   return headers;
+}
+
+function decodeBase64Utf8(base64Content: string): string {
+  const normalized = base64Content.replace(/\n/g, '');
+  const binary = atob(normalized);
+  const bytes = Uint8Array.from(binary, char => char.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
 }
 
 export async function fetchWorkflowFiles(repoInfo: GitHubRepoInfo, token?: string): Promise<WorkflowFile[]> {
@@ -115,13 +127,22 @@ export async function fetchWorkflowFiles(repoInfo: GitHubRepoInfo, token?: strin
       
       try {
         console.log(`Fetching file ${index + 1}/${yamlFiles.length}: ${file.name}`);
-        // Use token for raw content requests if available (for private repos)
+        // Fetch file content from api.github.com to avoid CORS issues on raw.githubusercontent.com.
+        const contentUrl = file.url || `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(file.path).replace(/%2F/g, '/')}?ref=${encodeURIComponent(branch)}`;
         const contentHeaders = buildGitHubHeaders(token);
-        const contentResponse = await fetch(file.download_url, { headers: contentHeaders });
+        const contentResponse = await fetch(contentUrl, { headers: contentHeaders });
+
         if (contentResponse.ok) {
-          const content = await contentResponse.text();
+          const contentJson: GitHubContentResponse = await contentResponse.json();
+
+          if (contentJson.encoding !== 'base64' || !contentJson.content) {
+            console.error(`Unexpected content format for ${file.name}`);
+            return null;
+          }
+
+          const content = decodeBase64Utf8(contentJson.content);
           console.log(`Successfully fetched ${file.name} (${content.length} characters)`);
-          
+
           return {
             id: `github-${owner}-${repo}-${file.name}-${Date.now()}`,
             name: file.name,
@@ -130,10 +151,28 @@ export async function fetchWorkflowFiles(repoInfo: GitHubRepoInfo, token?: strin
             repoUrl: `https://github.com/${owner}/${repo}`,
             filePath: file.path
           } as WorkflowFile;
-        } else {
-          console.error(`Failed to fetch ${file.name}: ${contentResponse.status} ${contentResponse.statusText}`);
-          return null;
         }
+
+        // Fallback for public repositories when API content decoding fails.
+        if (file.download_url) {
+          const rawResponse = await fetch(file.download_url);
+          if (rawResponse.ok) {
+            const content = await rawResponse.text();
+            console.log(`Successfully fetched ${file.name} via raw fallback (${content.length} characters)`);
+
+            return {
+              id: `github-${owner}-${repo}-${file.name}-${Date.now()}`,
+              name: file.name,
+              content,
+              source: 'github' as const,
+              repoUrl: `https://github.com/${owner}/${repo}`,
+              filePath: file.path
+            } as WorkflowFile;
+          }
+        }
+
+        console.error(`Failed to fetch ${file.name}: ${contentResponse.status} ${contentResponse.statusText}`);
+        return null;
       } catch (error) {
         console.error(`Error fetching content for ${file.name}:`, error);
         return null;
