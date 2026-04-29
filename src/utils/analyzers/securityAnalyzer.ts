@@ -350,19 +350,48 @@ export function analyzeSecurityIssues(
     },
   ];
   
-  dangerousTriggerPatterns.forEach(({ trigger, severity, desc, pattern }) => {
+  dangerousTriggerPatterns.forEach(({ trigger, severity: baseSeverity, desc, pattern }) => {
     const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
     for (const match of matches) {
       const lineNumber = findLineNumber(content, match[0]);
       const githubLink = createGitHubLink(githubContext, lineNumber);
       const codeSnippet = extractCodeSnippet(content, lineNumber, 4);
       
+      // Context-aware severity adjustment for pull_request_target
+      let severity = baseSeverity;
+      let contextDesc = desc;
+      if (trigger === 'pull_request_target') {
+        const hasCheckout = /actions\/checkout/i.test(content);
+        const checksOutPRHead = /ref:.*\$\{\{.*pull_request.*head/i.test(content) || 
+                                /ref:.*\$\{\{.*github\.event\.pull_request\.head\.sha/i.test(content) ||
+                                /ref:.*refs\/pull/i.test(content);
+        const hasSecrets = /secrets\./i.test(content);
+        const hasDockerRun = /docker\s+run/i.test(content);
+        
+        if (hasCheckout && checksOutPRHead && hasSecrets) {
+          severity = 'error';
+          contextDesc = 'CRITICAL: pull_request_target checks out PR head code AND uses secrets. This is the classic pwn-request pattern allowing full secret exfiltration by fork attackers.';
+        } else if (hasCheckout && checksOutPRHead) {
+          severity = 'error';
+          contextDesc = 'pull_request_target checks out untrusted PR head code. Even without explicit secrets, the GITHUB_TOKEN has write access.';
+        } else if (hasDockerRun && hasSecrets) {
+          severity = 'error';
+          contextDesc = 'pull_request_target runs Docker containers with secrets. Fork code may be processed with secret access.';
+        } else if (hasCheckout && !checksOutPRHead) {
+          severity = 'warning';
+          contextDesc = 'pull_request_target with checkout (appears to checkout base, not PR head). Verify the ref is not attacker-controlled.';
+        } else {
+          severity = 'info';
+          contextDesc = 'pull_request_target without code checkout. Lower risk — only metadata access. Ensure no user-controlled data flows into commands.';
+        }
+      }
+      
       results.push({
         id: `dangerous-trigger-${trigger}-${lineNumber}`,
         type: 'security',
         severity: severity,
         title: `Security-sensitive trigger: ${trigger}`,
-        description: desc,
+        description: contextDesc,
         file: fileName,
         location: { line: lineNumber },
         suggestion: `Review the security implications of ${trigger}. Implement input validation and authorization checks where applicable.`,
@@ -806,7 +835,10 @@ export function analyzeSecurityIssues(
     { pattern: /\$\{\{.*needs\..*\.outputs\..*\}\}/i, source: 'job output', severity: 'info' as const },
   ];
 
-  expressionInjectionPatterns.forEach(({ pattern, source, severity }) => {
+  // Determine if workflow has attacker-reachable triggers (for context-aware severity)
+  const hasAttackerReachableTrigger = /pull_request_target:|pull_request:|issue_comment:|discussion_comment:|workflow_run:|fork/i.test(content);
+
+  expressionInjectionPatterns.forEach(({ pattern, source, severity: baseSeverity }) => {
     const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
     for (const match of matches) {
       // Skip if it's properly sanitized (check for quotes or sanitization functions)
@@ -815,8 +847,18 @@ export function analyzeSecurityIssues(
       }
 
       const lineNumber = findLineNumber(content, match[0]);
+      // Skip comment lines
+      const matchedLine = contentLines[lineNumber - 1]?.trim() || '';
+      if (matchedLine.startsWith('#')) continue;
+
       const githubLink = createGitHubLink(githubContext, lineNumber);
       const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
+
+      // Context-aware: downgrade severity if no attacker-reachable trigger
+      let severity = baseSeverity;
+      if (!hasAttackerReachableTrigger && baseSeverity === 'error') {
+        severity = 'warning' as const;
+      }
 
       results.push({
         id: `expression-injection-${source.replace(/\s+/g, '-')}-${lineNumber}`,
