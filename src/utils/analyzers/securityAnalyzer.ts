@@ -1396,12 +1396,14 @@ export function analyzeSecurityIssues(
       const matrixVarPattern = /\$\{\{\s*matrix\.([^}]+)\}\}/g;
       const matches = step.run.matchAll(matrixVarPattern);
       for (const match of matches) {
+        // Only flag if matrix is user-controlled (fromJSON(inputs/event))
+        // OR if the matrix variable is used in a clearly dangerous context
         const dangerousContexts = [
-          /\|\s*(sh|bash|zsh)/,
-          /eval/,
-          />>/,
+          /\|\s*(sh|bash|zsh)/,  // pipe to shell
+          /eval/,                 // eval usage
         ];
-        if (isUserControlled || dangerousContexts.some(p => p.test(step.run!))) {
+        const isDangerousContext = dangerousContexts.some(p => p.test(step.run!));
+        if (isUserControlled || isDangerousContext) {
           const stepLineNumber = findStepLineNumber(content, jobId, stepIndex);
           results.push({
             id: `matrix-injection-${jobId}-${stepIndex}`,
@@ -1510,7 +1512,6 @@ export function analyzeSecurityIssues(
   });
 
   // === CACHE_POISONING (CACHE_RESTORE_KEYS_TOO_BROAD + CACHE_WRITE_IN_PR_WORKFLOW) ===
-  const hasPRTrigger = /\bon:\s*\[?.*pull_request[^_]/i.test(content) || /pull_request:/i.test(content);
   Object.entries(workflow.jobs).forEach(([jobId, job]) => {
     if (!job.steps || !Array.isArray(job.steps)) return;
     job.steps.forEach((step, stepIndex) => {
@@ -1536,18 +1537,19 @@ export function analyzeSecurityIssues(
           });
         }
       }
-      // Cache write in PR workflow
-      if (hasPRTrigger) {
+      // Cache write in pull_request_target workflow (can poison default branch cache)
+      const hasPRTargetForCache = /pull_request_target:/i.test(content);
+      if (hasPRTargetForCache) {
         const stepLineNumber = findStepLineNumber(content, jobId, stepIndex);
         results.push({
           id: `cache-write-pr-${jobId}-${stepIndex}`,
           type: 'security',
-          severity: 'info',
-          title: 'Cache write in pull_request workflow',
-          description: 'Writing cache from a pull_request workflow allows untrusted code to poison the cache for future runs on the default branch.',
+          severity: 'warning',
+          title: 'Cache write in pull_request_target workflow',
+          description: 'Cache writes in pull_request_target can poison the default branch cache since this trigger runs in the base repo context.',
           file: fileName,
           location: { job: jobId, step: stepIndex, line: stepLineNumber },
-          suggestion: 'Use cache action in read-only mode for PR workflows, or restrict cache scope.',
+          suggestion: 'Avoid writing to cache in pull_request_target workflows, or use a unique cache key that cannot collide with the default branch.',
           links: ['https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows#restrictions-for-accessing-a-cache'],
           githubUrl: createGitHubLink(githubContext, stepLineNumber)
         });
@@ -1664,9 +1666,10 @@ export function analyzeSecurityIssues(
       if (!uses || !uses.includes('.github/workflows/')) return;
       const isAgent = agentPatterns.some(p => p.test(uses));
       if (!isAgent) return;
-      // Check if secrets are passed
-      const jobContent = content.substring(content.indexOf(jobId + ':'));
-      const hasSecrets = /secrets:/i.test(jobContent.substring(0, jobContent.indexOf('\n  ') > 0 ? jobContent.indexOf('\n  ', 100) : 500));
+      // Check if secrets are passed (search within this job's YAML block)
+      const jobStartIdx = content.indexOf(jobId + ':');
+      const jobContent = jobStartIdx >= 0 ? content.substring(jobStartIdx, jobStartIdx + 600) : '';
+      const hasSecrets = /secrets:/i.test(jobContent);
       if (!hasSecrets) return;
       const lineNumber = findLineNumber(content, uses);
       results.push({
