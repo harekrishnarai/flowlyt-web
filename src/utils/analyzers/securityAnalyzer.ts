@@ -1,7 +1,7 @@
 import { WorkflowData, AnalysisResult } from '../../types/workflow';
 import { findLineNumber, findJobLineNumber, findStepLineNumber, extractCodeSnippet, extractStepSnippet } from '../yamlParser';
 import { GitHubAnalysisContext } from '../workflowAnalyzer';
-import { getSHARecommendation, isActionInDatabase, isVersionOutdated } from '../actionHashDatabase';
+import { getSHARecommendation, isActionInDatabase } from '../actionHashDatabase';
 import { 
   enhanceSecurityAnalysisWithReachability, 
   SecurityIssueWithReachability, 
