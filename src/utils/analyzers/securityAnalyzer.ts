@@ -52,9 +52,6 @@ export function analyzeSecurityIssues(
     { pattern: /token\s*[:=]\s*['"]\w+['"]/, name: 'token', priority: 3 },
     { pattern: /key\s*[:=]\s*['"]\w+['"]/, name: 'key', priority: 3 },
     { pattern: /secret\s*[:=]\s*['"]\w+['"]/, name: 'secret', priority: 3 },
-    // Generic patterns (lowest priority)
-    { pattern: /['"]\b[A-Za-z0-9+/]{40,}={0,2}['"]/, name: 'potential base64 secret', priority: 4 },
-    { pattern: /['"]\b[A-Za-z0-9_-]{20,}['"]/, name: 'potential token', priority: 5 },
   ];
   
   // Group patterns by line and only keep the highest priority match per line
@@ -104,17 +101,16 @@ export function analyzeSecurityIssues(
 
   // Check for sensitive information in logs/output with deduplication
   const sensitiveLogPatterns = [
+    { pattern: /echo.*\$\{\{.*secrets\./i, type: 'secret value logging' },
     { pattern: /echo.*password/i, type: 'password logging' },
     { pattern: /echo.*token/i, type: 'token logging' },
     { pattern: /echo.*secret/i, type: 'secret logging' },
-    { pattern: /echo.*key/i, type: 'key logging' },
     { pattern: /print.*password/i, type: 'password logging' },
     { pattern: /print.*token/i, type: 'token logging' },
     { pattern: /printf.*password/i, type: 'password logging' },
     { pattern: /console\.log.*password/i, type: 'password logging' },
     { pattern: /console\.log.*token/i, type: 'token logging' },
-    { pattern: /cat.*\.env/i, type: 'environment file access' },
-    { pattern: /cat.*config/i, type: 'config file access' },
+    { pattern: /cat\s+\.env\b/i, type: 'environment file access' },
   ];
 
   const logLineMatches = new Map<number, { pattern: { pattern: RegExp, type: string }, match: RegExpMatchArray }>();
@@ -348,18 +344,6 @@ export function analyzeSecurityIssues(
       desc: 'discussion_comment trigger can be invoked by any user. Implement authorization checks before running commands.',
       pattern: /discussion_comment:/
     },
-    { 
-      trigger: 'repository_dispatch', 
-      severity: 'info' as const,
-      desc: 'repository_dispatch can be triggered externally. Validate client_payload inputs before use.',
-      pattern: /repository_dispatch:/
-    },
-    { 
-      trigger: 'workflow_dispatch', 
-      severity: 'info' as const,
-      desc: 'workflow_dispatch allows manual input. Validate all inputs before use in commands.',
-      pattern: /workflow_dispatch:/
-    },
   ];
   
   dangerousTriggerPatterns.forEach(({ trigger, severity, desc, pattern }) => {
@@ -547,21 +531,22 @@ export function analyzeSecurityIssues(
             }
           }
           
-          // Check for actions from untrusted sources (enhanced detection)
+          // Check for actions from untrusted sources
+          // Skip SHA-pinned actions — they have minimal supply chain risk
           const actionOwner = step.uses.split('/')[0];
+          const versionPart = step.uses.includes('@') ? step.uses.split('@')[1] : '';
+          const isSHAPinned = /^[a-f0-9]{40}$/i.test(versionPart);
           
-          if (!TRUSTED_ACTION_OWNERS.includes(actionOwner)) {
-            const severity = step.uses.includes('@') && /^[a-f0-9]{40}$/i.test(step.uses.split('@')[1]) ? 'info' : 'warning';
-            
+          if (!TRUSTED_ACTION_OWNERS.includes(actionOwner) && !isSHAPinned) {
             results.push({
               id: `untrusted-action-${jobId}-${stepIndex}`,
               type: 'security',
-              severity: severity,
+              severity: 'warning',
               title: 'Third-party action usage',
-              description: `Using action from '${actionOwner}' - verify trustworthiness and security practices`,
+              description: `Using action from '${actionOwner}' - verify trustworthiness and pin to SHA`,
               file: fileName,
               location: { job: jobId, step: stepIndex, line: stepLineNumber },
-              suggestion: 'Review the action source code, check its reputation, and ensure it\'s pinned to a specific SHA for security',
+              suggestion: 'Pin third-party actions to a specific commit SHA to prevent supply chain attacks.',
               links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
               githubUrl: githubLink,
               codeSnippet: codeSnippet || undefined
@@ -703,12 +688,14 @@ export function analyzeSecurityIssues(
   });
 
   // Check for dangerous writes to GITHUB_ENV/GITHUB_OUTPUT
+  // Only flag when expression interpolation (${{ }}) is used, which can contain
+  // attacker-controlled values. Plain shell variables are safe.
   const dangerousWritePatterns = [
-    /echo.*>>.*GITHUB_ENV/i,
-    /echo.*>>.*GITHUB_OUTPUT/i,
-    /printf.*>>.*GITHUB_ENV/i,
-    /printf.*>>.*GITHUB_OUTPUT/i,
-    /set-output.*name/i, // deprecated but still check
+    /echo.*\$\{\{.*\}\}.*>>.*GITHUB_ENV/i,
+    /echo.*\$\{\{.*\}\}.*>>.*GITHUB_OUTPUT/i,
+    /printf.*\$\{\{.*\}\}.*>>.*GITHUB_ENV/i,
+    /printf.*\$\{\{.*\}\}.*>>.*GITHUB_OUTPUT/i,
+    /set-output.*name/i, // deprecated command, always flag
   ];
 
   dangerousWritePatterns.forEach(pattern => {
@@ -981,11 +968,10 @@ export function analyzeSecurityIssues(
     }
   });
 
-  // Check for local action usage
+  // Check for local action usage (informational only — same repo code)
   const localActionPatterns = [
     /uses:\s*\.\//i,
     /uses:\s*\.\./i,
-    /uses:\s*['"]?\.\/[^'"]*['"]?/i,
   ];
 
   localActionPatterns.forEach(pattern => {
@@ -998,12 +984,12 @@ export function analyzeSecurityIssues(
       results.push({
         id: `local-action-${Date.now()}-${Math.random()}`,
         type: 'security',
-        severity: 'warning',
+        severity: 'info',
         title: 'Local action usage',
-        description: 'Using local GitHub action which cannot be analyzed for vulnerabilities',
+        description: 'Using local action from the same repository. Ensure it is reviewed as part of normal code review.',
         file: fileName,
         location: { line: lineNumber },
-        suggestion: 'Consider using published actions with SHA pinning, or audit local actions thoroughly.',
+        suggestion: 'Local actions are inherently trusted (same repo). Audit them during code review like any other code.',
         links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
         githubUrl: githubLink,
         codeSnippet: codeSnippet || undefined
