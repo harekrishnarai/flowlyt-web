@@ -1358,7 +1358,16 @@ export function analyzeSecurityIssues(
     }
   });
 
-  return results;
+  // Deduplicate: keep only one finding per (title + line) combination
+  const seen = new Set<string>();
+  const dedupedResults = results.filter(r => {
+    const key = `${r.title}::${r.location?.line ?? r.location?.step ?? ''}::${r.file}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  return dedupedResults;
 }
 
 /**
