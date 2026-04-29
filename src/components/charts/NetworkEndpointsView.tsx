@@ -37,8 +37,8 @@ const extractNetworkEndpoints = (reports: AnalysisReport[]): NetworkEndpoint[] =
   
   // Enhanced URL patterns for better detection
   const urlPatterns = [
-    // HTTP/HTTPS URLs
-    /https?:\/\/[^\s'"<>|\[\]{}]+/gi,
+    // HTTP/HTTPS URLs (skip template expressions like ${{ env.URL }})
+    /https?:\/\/[^\s'"<>|\[\]{}$]+/gi,
     // GitHub raw content
     /raw\.githubusercontent\.com\/[^\s'"<>|\[\]{}]+/gi,
     // Package registries
@@ -47,9 +47,6 @@ const extractNetworkEndpoints = (reports: AnalysisReport[]): NetworkEndpoint[] =
     // Docker registries
     /docker\.io\/[^\s'"<>|\[\]{}]+/gi,
     /ghcr\.io\/[^\s'"<>|\[\]{}]+/gi,
-    // API endpoints in environment variables
-    /\$\{[^}]*URL[^}]*\}/gi,
-    /\$\{[^}]*ENDPOINT[^}]*\}/gi,
   ];
 
   const commandPatterns = [
@@ -81,6 +78,8 @@ const extractNetworkEndpoints = (reports: AnalysisReport[]): NetworkEndpoint[] =
                 // Clean up the URL
                 const cleanUrl = url.replace(/['"<>\]\[{}]+$/, '');
                 
+                // Skip URLs with unresolved variables (not real endpoints)
+                if (cleanUrl.includes('$') || cleanUrl.includes('{{')) return;
                 // Determine method from command context
                 let method = 'GET';
                 let type: NetworkEndpoint['type'] = 'unknown';

@@ -35,8 +35,12 @@ export default function ResultSummaryDashboard({ reports }: ResultSummaryDashboa
       });
     });
 
-    const maxPossibleIssues = reports.length * 50;
-    const securityScore = totalIssues === 0 ? 100 : Math.max(0, Math.round((1 - (critical * 10 + high * 5) / maxPossibleIssues) * 100));
+    // Score formula: exponential decay based on weighted findings
+    // Critical findings deduct ~5 points each, warnings ~1 point each
+    // Scale increases with file count so large repos aren't unfairly penalized
+    const penalty = critical * 5 + high * 1;
+    const scale = Math.max(reports.length * 15, 30);
+    const securityScore = totalIssues === 0 ? 100 : Math.max(0, Math.round(100 * Math.exp(-penalty / scale)));
 
     return {
       totalIssues,

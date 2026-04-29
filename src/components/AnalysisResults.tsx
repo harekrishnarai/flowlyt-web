@@ -181,9 +181,10 @@ export default function AnalysisResults({ reports, workflowFiles, onNewAnalysis 
       high += report.summary.warningCount;
     });
 
-    const maxPossibleIssues = reportsToScore.length * 50;
     const totalIssues = reportsToScore.reduce((sum, report) => sum + report.summary.totalIssues, 0);
-    return totalIssues === 0 ? 100 : Math.max(0, Math.round((1 - (critical * 10 + high * 5) / maxPossibleIssues) * 100));
+    const penalty = critical * 5 + high * 1;
+    const scale = Math.max(reportsToScore.length * 15, 30);
+    return totalIssues === 0 ? 100 : Math.max(0, Math.round(100 * Math.exp(-penalty / scale)));
   };
 
   // Get the list of reports to display based on selection
