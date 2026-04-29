@@ -114,11 +114,16 @@ export function analyzeSecurityIssues(
   ];
 
   const logLineMatches = new Map<number, { pattern: { pattern: RegExp, type: string }, match: RegExpMatchArray }>();
+  const contentLines = content.split('\n');
 
   sensitiveLogPatterns.forEach(({ pattern, type }) => {
     const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
     for (const match of matches) {
       const lineNumber = findLineNumber(content, match[0]);
+      // Skip comment lines
+      const matchedLine = contentLines[lineNumber - 1]?.trim() || '';
+      if (matchedLine.startsWith('#')) continue;
+
       const lineKey = `${lineNumber}-sensitive-log`;
       
       if (!processedLines.has(lineKey)) {
@@ -149,16 +154,10 @@ export function analyzeSecurityIssues(
   });
 
   // Check for malicious network calls and data exfiltration
+  // Only match in actual run steps, not comments
   const suspiciousNetworkPatterns = [
-    /curl.*http[s]?:\/\/(?!github\.com|api\.github\.com|raw\.githubusercontent\.com)/i,
-    /wget.*http[s]?:\/\/(?!github\.com|api\.github\.com|raw\.githubusercontent\.com)/i,
-    /fetch.*http[s]?:\/\/(?!github\.com|api\.github\.com|raw\.githubusercontent\.com)/i,
     /nc\s+\d+\.\d+\.\d+\.\d+/i, // netcat to IP address
     /telnet\s+\d+\.\d+\.\d+\.\d+/i,
-    /scp.*@/i, // SCP transfers
-    /rsync.*@/i, // rsync transfers
-    /mail\s+/i, // email commands
-    /sendmail/i,
     /base64.*\|.*curl/i, // base64 encoding piped to curl (common exfiltration)
     /tar.*\|.*curl/i, // archive and send
   ];
@@ -167,6 +166,11 @@ export function analyzeSecurityIssues(
     const matches = content.matchAll(new RegExp(pattern.source, 'gi'));
     for (const match of matches) {
       const lineNumber = findLineNumber(content, match[0]);
+      // Skip if the matched line is a comment
+      const lines = content.split('\n');
+      const matchedLine = lines[lineNumber - 1]?.trim() || '';
+      if (matchedLine.startsWith('#')) continue;
+
       const githubLink = createGitHubLink(githubContext, lineNumber);
       const codeSnippet = extractCodeSnippet(content, lineNumber, 2);
       
