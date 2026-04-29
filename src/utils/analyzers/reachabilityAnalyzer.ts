@@ -153,54 +153,44 @@ export function analyzeReachability(
   }
 
   // Analyze specific issue patterns for reachability
-  switch (issue.title.toLowerCase()) {
-    case 'hardcoded secrets detected':
-      // Always reachable if workflow runs
-      isReachable = true;
-      riskLevel = executionContext.environmentalFactors.hasPrivilegedTrigger ? 'high' : 'medium';
-      break;
-      
-    case 'potential expression injection':
-      // Check if the injection is in a reachable context
-      if (requiredConditions.some(c => c.includes('github.event'))) {
-        riskLevel = 'high';
-      } else if (requiredConditions.length > 0) {
-        riskLevel = 'medium';
-        mitigatingFactors.push('Conditional execution reduces risk');
-      }
-      break;
-      
-    case 'dangerous checkout with privileged trigger':
-      // Only reachable with specific triggers
-      isReachable = privilegedTriggers.some(t => triggerContexts.includes(t));
-      riskLevel = isReachable ? 'high' : 'informational';
-      break;
-      
-    case 'third-party action usage':
-      // Risk depends on when it's executed
-      if (executionContext.environmentalFactors.hasPrivilegedTrigger) {
-        riskLevel = 'medium';
-      } else {
-        riskLevel = 'low';
-        mitigatingFactors.push('Limited trigger context');
-      }
-      break;
-      
-    case 'self-hosted runner detected':
-      // Always concerning if present
-      isReachable = true;
-      riskLevel = executionContext.environmentalFactors.hasPrivilegedTrigger ? 'high' : 'medium';
-      break;
-      
-    case 'overly permissive workflow permissions':
-      // Risk depends on what the workflow does
-      if (executionContext.environmentalFactors.hasExternalActions) {
-        riskLevel = 'medium';
-      } else {
-        riskLevel = 'low';
-        mitigatingFactors.push('No external actions detected');
-      }
-      break;
+  const titleLower = issue.title.toLowerCase();
+  
+  if (titleLower.includes('hardcoded') && titleLower.includes('detected')) {
+    // Always reachable if workflow runs
+    isReachable = true;
+    riskLevel = executionContext.environmentalFactors.hasPrivilegedTrigger ? 'high' : 'medium';
+  } else if (titleLower.includes('expression injection')) {
+    // Check if the injection is in a reachable context
+    if (requiredConditions.some(c => c.includes('github.event'))) {
+      riskLevel = 'high';
+    } else if (requiredConditions.length > 0) {
+      riskLevel = 'medium';
+      mitigatingFactors.push('Conditional execution reduces risk');
+    }
+  } else if (titleLower.includes('dangerous checkout') && titleLower.includes('privileged')) {
+    // Only reachable with specific triggers
+    isReachable = privilegedTriggers.some(t => triggerContexts.includes(t));
+    riskLevel = isReachable ? 'high' : 'informational';
+  } else if (titleLower.includes('third-party action')) {
+    // Risk depends on when it's executed
+    if (executionContext.environmentalFactors.hasPrivilegedTrigger) {
+      riskLevel = 'medium';
+    } else {
+      riskLevel = 'low';
+      mitigatingFactors.push('Limited trigger context');
+    }
+  } else if (titleLower.includes('self-hosted runner')) {
+    // Always concerning if present
+    isReachable = true;
+    riskLevel = executionContext.environmentalFactors.hasPrivilegedTrigger ? 'high' : 'medium';
+  } else if (titleLower.includes('permissive') && titleLower.includes('permission')) {
+    // Risk depends on what the workflow does
+    if (executionContext.environmentalFactors.hasExternalActions) {
+      riskLevel = 'medium';
+    } else {
+      riskLevel = 'low';
+      mitigatingFactors.push('No external actions detected');
+    }
   }
 
   // Check for mitigating factors

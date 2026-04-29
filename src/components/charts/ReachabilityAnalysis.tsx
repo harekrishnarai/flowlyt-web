@@ -105,7 +105,7 @@ export function ReachabilityAnalysis({ report }: ReachabilityAnalysisProps) {
                 <span
                   key={index}
                   className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    ['workflow_run', 'pull_request_target', 'repository_dispatch'].includes(trigger)
+                    ['workflow_run', 'pull_request_target', 'issue_comment', 'discussion_comment'].includes(trigger)
                       ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
                       : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
                   }`}
