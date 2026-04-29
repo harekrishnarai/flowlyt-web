@@ -1340,6 +1340,308 @@ export function analyzeSecurityIssues(
     }
   });
 
+  // === MATRIX_INJECTION ===
+  // Detect matrix strategy values used in dangerous shell contexts
+  Object.entries(workflow.jobs).forEach(([jobId, job]) => {
+    if (!job.steps || !Array.isArray(job.steps)) return;
+    const jobStrategy = (job as Record<string, unknown>).strategy as Record<string, unknown> | undefined;
+    if (!jobStrategy?.matrix) return;
+    const matrixStr = JSON.stringify(jobStrategy.matrix);
+    const isUserControlled = matrixStr.includes('fromJSON(inputs.') || matrixStr.includes('fromJSON(github.event.');
+    
+    job.steps.forEach((step, stepIndex) => {
+      if (!step.run) return;
+      const matrixVarPattern = /\$\{\{\s*matrix\.([^}]+)\}\}/g;
+      const matches = step.run.matchAll(matrixVarPattern);
+      for (const match of matches) {
+        const dangerousContexts = [
+          /\|\s*(sh|bash|zsh)/,
+          /eval/,
+          />>/,
+        ];
+        if (isUserControlled || dangerousContexts.some(p => p.test(step.run!))) {
+          const stepLineNumber = findStepLineNumber(content, jobId, stepIndex);
+          results.push({
+            id: `matrix-injection-${jobId}-${stepIndex}`,
+            type: 'security',
+            severity: 'error',
+            title: 'Matrix strategy injection',
+            description: `Matrix variable \${{ matrix.${match[1]} }} used in shell context — attacker-controlled matrix values can inject commands`,
+            file: fileName,
+            location: { job: jobId, step: stepIndex, line: stepLineNumber },
+            suggestion: 'Assign matrix values to environment variables instead of interpolating directly in run scripts.',
+            links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections'],
+            githubUrl: createGitHubLink(githubContext, stepLineNumber),
+            codeSnippet: extractStepSnippet(content, jobId, stepIndex) || undefined
+          });
+          break; // one finding per step
+        }
+      }
+    });
+  });
+
+  // === SECRETS_INHERIT ===
+  // Detect reusable workflows or callers using secrets: inherit
+  const secretsInheritPattern = /secrets:\s*inherit/gi;
+  const inheritMatches = content.matchAll(secretsInheritPattern);
+  for (const match of inheritMatches) {
+    const lineNumber = findLineNumber(content, match[0]);
+    const matchedLine = content.split('\n')[lineNumber - 1]?.trim() || '';
+    if (matchedLine.startsWith('#')) continue;
+    results.push({
+      id: `secrets-inherit-${lineNumber}`,
+      type: 'security',
+      severity: 'warning',
+      title: 'Unrestricted secret inheritance',
+      description: 'Using secrets: inherit passes all repository secrets to the called workflow without restriction.',
+      file: fileName,
+      location: { line: lineNumber },
+      suggestion: 'Explicitly pass only required secrets instead of inheriting all.',
+      links: ['https://docs.github.com/en/actions/using-workflows/reusing-workflows#passing-secrets-to-nested-workflows'],
+      githubUrl: createGitHubLink(githubContext, lineNumber),
+      codeSnippet: extractCodeSnippet(content, lineNumber, 2) || undefined
+    });
+  }
+
+  // === CONTINUE_ON_ERROR_CRITICAL_JOB ===
+  const criticalJobPatterns = ['deploy', 'prod', 'production', 'release', 'publish', 'security', 'auth'];
+  Object.entries(workflow.jobs).forEach(([jobId, job]) => {
+    const jobAny = job as Record<string, unknown>;
+    if (jobAny['continue-on-error'] !== true && jobAny['continue-on-error'] !== 'true') return;
+    const jobLower = jobId.toLowerCase();
+    const isCritical = criticalJobPatterns.some(p => jobLower.includes(p));
+    if (!isCritical) return;
+    const lineNumber = findLineNumber(content, jobId + ':');
+    results.push({
+      id: `continue-on-error-${jobId}`,
+      type: 'security',
+      severity: 'warning',
+      title: 'continue-on-error in critical job',
+      description: `Critical job '${jobId}' has continue-on-error enabled, which may mask security failures.`,
+      file: fileName,
+      location: { job: jobId, line: lineNumber },
+      suggestion: 'Remove continue-on-error from security-critical jobs to ensure failures are not silently ignored.',
+      links: ['https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idcontinue-on-error'],
+      githubUrl: createGitHubLink(githubContext, lineNumber)
+    });
+  });
+
+  // === UNSOUND_CONTAINS ===
+  // Detect vulnerable contains() in if conditions
+  const unsoundContainsPatterns = [
+    /contains\(.*github\.event.*,\s*'[^']*'\)/i,
+    /contains\(.*github\.actor.*,\s*'[^']*'\)/i,
+    /contains\(.*steps\..*\.outputs.*,\s*'[^']*'\)/i,
+  ];
+  Object.entries(workflow.jobs).forEach(([jobId, job]) => {
+    const jobAny = job as Record<string, unknown>;
+    const conditions: { condition: string; context: string; stepIndex?: number }[] = [];
+    if (typeof jobAny.if === 'string') conditions.push({ condition: jobAny.if as string, context: 'job' });
+    if (job.steps && Array.isArray(job.steps)) {
+      job.steps.forEach((step, idx) => {
+        if (typeof (step as Record<string, unknown>).if === 'string') {
+          conditions.push({ condition: (step as Record<string, unknown>).if as string, context: 'step', stepIndex: idx });
+        }
+      });
+    }
+    conditions.forEach(({ condition, context, stepIndex }) => {
+      if (!condition.includes('contains(')) return;
+      for (const pattern of unsoundContainsPatterns) {
+        if (pattern.test(condition)) {
+          const lineNumber = findLineNumber(content, condition);
+          results.push({
+            id: `unsound-contains-${jobId}-${context}-${stepIndex ?? 0}`,
+            type: 'security',
+            severity: 'error',
+            title: 'Bypassable contains() condition',
+            description: `Condition uses contains() with user-controlled data: "${condition.substring(0, 80)}". Attackers can include the expected substring in larger malicious input.`,
+            file: fileName,
+            location: { job: jobId, step: stepIndex, line: lineNumber },
+            suggestion: 'Use exact string comparison or startsWith() instead of contains() for security gates.',
+            links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
+            githubUrl: createGitHubLink(githubContext, lineNumber)
+          });
+          break;
+        }
+      }
+    });
+  });
+
+  // === CACHE_POISONING (CACHE_RESTORE_KEYS_TOO_BROAD + CACHE_WRITE_IN_PR_WORKFLOW) ===
+  const hasPRTrigger = /\bon:\s*\[?.*pull_request[^_]/i.test(content) || /pull_request:/i.test(content);
+  Object.entries(workflow.jobs).forEach(([jobId, job]) => {
+    if (!job.steps || !Array.isArray(job.steps)) return;
+    job.steps.forEach((step, stepIndex) => {
+      if (!step.uses) return;
+      if (!step.uses.includes('actions/cache')) return;
+      const restoreKeys = step.with?.['restore-keys'];
+      if (restoreKeys && typeof restoreKeys === 'string') {
+        // Check if restore-keys lacks content hash (just a prefix like "npm-")
+        if (!restoreKeys.includes('hashFiles') && !restoreKeys.includes('${{')) {
+          const stepLineNumber = findStepLineNumber(content, jobId, stepIndex);
+          results.push({
+            id: `cache-broad-restore-${jobId}-${stepIndex}`,
+            type: 'security',
+            severity: 'warning',
+            title: 'Broad cache restore-keys',
+            description: 'Cache restore-keys without content hash allows poisoned caches from other branches to be restored.',
+            file: fileName,
+            location: { job: jobId, step: stepIndex, line: stepLineNumber },
+            suggestion: 'Include hashFiles() in restore-keys or remove overly broad fallback keys.',
+            links: ['https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows'],
+            githubUrl: createGitHubLink(githubContext, stepLineNumber),
+            codeSnippet: extractStepSnippet(content, jobId, stepIndex) || undefined
+          });
+        }
+      }
+      // Cache write in PR workflow
+      if (hasPRTrigger) {
+        const stepLineNumber = findStepLineNumber(content, jobId, stepIndex);
+        results.push({
+          id: `cache-write-pr-${jobId}-${stepIndex}`,
+          type: 'security',
+          severity: 'info',
+          title: 'Cache write in pull_request workflow',
+          description: 'Writing cache from a pull_request workflow allows untrusted code to poison the cache for future runs on the default branch.',
+          file: fileName,
+          location: { job: jobId, step: stepIndex, line: stepLineNumber },
+          suggestion: 'Use cache action in read-only mode for PR workflows, or restrict cache scope.',
+          links: ['https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows#restrictions-for-accessing-a-cache'],
+          githubUrl: createGitHubLink(githubContext, stepLineNumber)
+        });
+      }
+    });
+  });
+
+  // === ARTIPACKED_VULNERABILITY ===
+  // Detect checkout + upload-artifact without path restriction (leaks .git with credentials)
+  Object.entries(workflow.jobs).forEach(([jobId, job]) => {
+    if (!job.steps || !Array.isArray(job.steps)) return;
+    let hasCheckout = false;
+    let checkoutHasPersistFalse = false;
+    job.steps.forEach((step) => {
+      if (step.uses?.includes('actions/checkout')) {
+        hasCheckout = true;
+        if (step.with?.['persist-credentials'] === false || step.with?.['persist-credentials'] === 'false') {
+          checkoutHasPersistFalse = true;
+        }
+      }
+    });
+    if (!hasCheckout || checkoutHasPersistFalse) return;
+
+    job.steps.forEach((step, stepIndex) => {
+      if (!step.uses?.includes('actions/upload-artifact')) return;
+      const path = step.with?.path;
+      // Flag if uploading entire directory (. or no path or broad glob)
+      if (!path || path === '.' || path === './' || path === '*' || path === '**') {
+        const stepLineNumber = findStepLineNumber(content, jobId, stepIndex);
+        results.push({
+          id: `artipacked-${jobId}-${stepIndex}`,
+          type: 'security',
+          severity: 'warning',
+          title: 'Artifact may leak git credentials',
+          description: 'upload-artifact with broad path after checkout (without persist-credentials: false) may include .git directory with tokens.',
+          file: fileName,
+          location: { job: jobId, step: stepIndex, line: stepLineNumber },
+          suggestion: 'Add persist-credentials: false to checkout, or specify explicit paths in upload-artifact.',
+          links: ['https://github.com/nikitastupin/pwnhub/blob/main/artipacked.md'],
+          githubUrl: createGitHubLink(githubContext, stepLineNumber),
+          codeSnippet: extractStepSnippet(content, jobId, stepIndex) || undefined
+        });
+      }
+    });
+  });
+
+  // === WORKFLOW_RUN_ARTIFACT_UNTRUSTED ===
+  // Detect workflow_run that downloads artifacts without constraining run_id
+  const hasWorkflowRunTrigger = /workflow_run:/i.test(content);
+  if (hasWorkflowRunTrigger) {
+    Object.entries(workflow.jobs).forEach(([jobId, job]) => {
+      if (!job.steps || !Array.isArray(job.steps)) return;
+      job.steps.forEach((step, stepIndex) => {
+        if (!step.uses?.includes('actions/download-artifact') && !step.uses?.includes('dawidd6/action-download-artifact')) return;
+        // Check if run_id is constrained
+        const runId = step.with?.['run-id'] || step.with?.['run_id'];
+        if (!runId) {
+          const stepLineNumber = findStepLineNumber(content, jobId, stepIndex);
+          results.push({
+            id: `workflow-run-artifact-${jobId}-${stepIndex}`,
+            type: 'security',
+            severity: 'error',
+            title: 'Untrusted artifact download in workflow_run',
+            description: 'Downloading artifacts in workflow_run without constraining run_id allows supply chain attacks — any workflow run can supply malicious artifacts.',
+            file: fileName,
+            location: { job: jobId, step: stepIndex, line: stepLineNumber },
+            suggestion: 'Constrain artifact download to a specific run_id from the triggering workflow: ${{ github.event.workflow_run.id }}',
+            links: ['https://securitylab.github.com/research/github-actions-untrusted-input/'],
+            githubUrl: createGitHubLink(githubContext, stepLineNumber),
+            codeSnippet: extractStepSnippet(content, jobId, stepIndex) || undefined
+          });
+        }
+      });
+    });
+  }
+
+  // === DOCKER_EXEC_WITH_SECRETS_ON_FORK_CODE ===
+  // Detect docker run with secrets in pull_request_target workflows without --network=none
+  const hasPRTargetTrigger = /pull_request_target:/i.test(content);
+  if (hasPRTargetTrigger) {
+    Object.entries(workflow.jobs).forEach(([jobId, job]) => {
+      if (!job.steps || !Array.isArray(job.steps)) return;
+      job.steps.forEach((step, stepIndex) => {
+        if (!step.run) return;
+        const hasDocker = /docker\s+run\b/.test(step.run);
+        if (!hasDocker) return;
+        if (/--network[=\s]+none/.test(step.run)) return;
+        const hasSecretEnv = /(-e|--env)\s+\w*(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)\w*/i.test(step.run) ||
+          /(-e|--env)\s+\$\{\{\s*secrets\./i.test(step.run);
+        if (!hasSecretEnv) return;
+        const stepLineNumber = findStepLineNumber(content, jobId, stepIndex);
+        results.push({
+          id: `docker-secrets-fork-${jobId}-${stepIndex}`,
+          type: 'security',
+          severity: 'error',
+          title: 'Docker container with secrets on fork code',
+          description: 'Docker container receives secrets via environment variables in a pull_request_target workflow without network isolation. Fork code can exfiltrate secrets.',
+          file: fileName,
+          location: { job: jobId, step: stepIndex, line: stepLineNumber },
+          suggestion: 'Add --network=none to docker run, or do not pass secrets to containers processing untrusted code.',
+          links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
+          githubUrl: createGitHubLink(githubContext, stepLineNumber),
+          codeSnippet: extractStepSnippet(content, jobId, stepIndex) || undefined
+        });
+      });
+    });
+
+    // === AI_AGENT_ON_UNTRUSTED_CODE ===
+    // Detect reusable agent workflows called with secrets under pull_request_target
+    const agentPatterns = [/review.*pr/i, /agent/i, /ai.*review/i, /code.*review/i, /auto.*review/i, /bot.*respond/i];
+    Object.entries(workflow.jobs).forEach(([jobId, job]) => {
+      const jobAny = job as Record<string, unknown>;
+      const uses = jobAny.uses as string | undefined;
+      if (!uses || !uses.includes('.github/workflows/')) return;
+      const isAgent = agentPatterns.some(p => p.test(uses));
+      if (!isAgent) return;
+      // Check if secrets are passed
+      const jobContent = content.substring(content.indexOf(jobId + ':'));
+      const hasSecrets = /secrets:/i.test(jobContent.substring(0, jobContent.indexOf('\n  ') > 0 ? jobContent.indexOf('\n  ', 100) : 500));
+      if (!hasSecrets) return;
+      const lineNumber = findLineNumber(content, uses);
+      results.push({
+        id: `ai-agent-fork-${jobId}`,
+        type: 'security',
+        severity: 'error',
+        title: 'AI agent processes untrusted fork code with secrets',
+        description: `Reusable workflow '${uses}' appears to be an AI agent/review bot called with secrets under pull_request_target. Fork code can exploit the agent to exfiltrate secrets.`,
+        file: fileName,
+        location: { job: jobId, line: lineNumber },
+        suggestion: 'Require maintainer approval labels before running agents. Use --network=none in downstream containers. Do not pass secrets to workflows processing fork code.',
+        links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
+        githubUrl: createGitHubLink(githubContext, lineNumber)
+      });
+    });
+  }
+
   // Deduplicate: keep only one finding per (title + line) combination
   const seen = new Set<string>();
   const dedupedResults = results.filter(r => {
