@@ -1684,6 +1684,60 @@ export function analyzeSecurityIssues(
     });
   }
 
+  // === IMPOSTOR_COMMIT ===
+  // Detect git config commands that impersonate users or use variable-based identity
+  const knownBotPattern = /user\.(name|email)\s+["']?(github-actions(\[bot\])?|dependabot\[bot\])["']?/i;
+  const impostorPatterns = [
+    /git\s+config\s+.*user\.name.*\$\{/i,   // Variable-based user name (most dangerous)
+    /git\s+config\s+.*user\.email.*\$\{/i,  // Variable-based email
+    /git\s+config\s+.*user\.name.*\$\(\(/i, // Command substitution in name
+    /git\s+config\s+.*user\.email.*\$\(\(/i,
+  ];
+  Object.entries(workflow.jobs).forEach(([jobId, job]) => {
+    if (!job.steps || !Array.isArray(job.steps)) return;
+    job.steps.forEach((step, stepIndex) => {
+      if (!step.run) return;
+      // Check for variable-based identity (critical) or bot impersonation
+      for (const pattern of impostorPatterns) {
+        if (pattern.test(step.run)) {
+          const stepLineNumber = findStepLineNumber(content, jobId, stepIndex);
+          results.push({
+            id: `impostor-commit-${jobId}-${stepIndex}`,
+            type: 'security',
+            severity: 'error',
+            title: 'Impostor commit: variable-based git identity',
+            description: 'Git user.name or user.email is set from a variable, allowing attacker-controlled commit authorship for supply chain attacks.',
+            file: fileName,
+            location: { job: jobId, step: stepIndex, line: stepLineNumber },
+            suggestion: 'Use a fixed, verified identity or an official action (e.g., peter-evans/create-pull-request) instead of variable-based git config.',
+            links: ['https://blog.gruntwork.io/how-to-spoof-any-user-on-github-and-what-to-do-to-prevent-it-e237e95b8deb'],
+            githubUrl: createGitHubLink(githubContext, stepLineNumber),
+            codeSnippet: extractStepSnippet(content, jobId, stepIndex) || undefined
+          });
+          return; // one finding per step
+        }
+      }
+      // Check for bot impersonation (lower severity — usually legitimate automation)
+      if (/git\s+config\s+.*user\.(name|email)/i.test(step.run) && !knownBotPattern.test(step.run)) {
+        // Non-bot, non-variable identity — custom identity that could be impersonation
+        const stepLineNumber = findStepLineNumber(content, jobId, stepIndex);
+        results.push({
+          id: `impostor-commit-${jobId}-${stepIndex}`,
+          type: 'security',
+          severity: 'warning',
+          title: 'Impostor commit: custom git identity',
+          description: 'Git commit identity is set to a custom name/email. Verify this is intentional and not impersonating a trusted author.',
+          file: fileName,
+          location: { job: jobId, step: stepIndex, line: stepLineNumber },
+          suggestion: 'Use official GitHub Actions bot identity or a verified service account.',
+          links: ['https://blog.gruntwork.io/how-to-spoof-any-user-on-github-and-what-to-do-to-prevent-it-e237e95b8deb'],
+          githubUrl: createGitHubLink(githubContext, stepLineNumber),
+          codeSnippet: extractStepSnippet(content, jobId, stepIndex) || undefined
+        });
+      }
+    });
+  });
+
   // Deduplicate: keep only one finding per (title + line) combination
   const seen = new Set<string>();
   const dedupedResults = results.filter(r => {
