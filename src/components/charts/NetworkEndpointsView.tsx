@@ -69,6 +69,10 @@ const extractNetworkEndpoints = (reports: AnalysisReport[]): NetworkEndpoint[] =
         const lines = content.split('\n');
 
         lines.forEach((line: string, lineIndex: number) => {
+          // Skip comment lines
+          const trimmed = line.trim();
+          if (trimmed.startsWith('#') || trimmed.startsWith('//')) return;
+
           // Extract URLs from the line
           urlPatterns.forEach(pattern => {
             const matches = line.match(pattern);
