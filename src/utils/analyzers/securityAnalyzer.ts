@@ -513,25 +513,7 @@ export function analyzeSecurityIssues(
                 });
               }
 
-              // Check for outdated versions
-              if (isActionInDatabase(actionName) && isVersionOutdated(actionName, version)) {
-                const latestRecommendation = getSHARecommendation(actionName);
-                if (latestRecommendation) {
-                  results.push({
-                    id: `outdated-version-${jobId}-${stepIndex}`,
-                    type: 'security',
-                    severity: 'warning',
-                    title: 'Outdated action version',
-                    description: `Action '${step.uses}' is using an outdated version`,
-                    file: fileName,
-                    location: { job: jobId, step: stepIndex, line: stepLineNumber },
-                    suggestion: `Update to latest: ${actionName}@${latestRecommendation.recommendedSHA} # ${latestRecommendation.recommendedVersion}`,
-                    links: ['https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions'],
-                    githubUrl: githubLink,
-                    codeSnippet: codeSnippet || undefined
-                  });
-                }
-              }
+              // Outdated version checking handled by dependencyAnalyzer
             }
           }
           

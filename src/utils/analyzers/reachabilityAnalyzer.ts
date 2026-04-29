@@ -402,39 +402,5 @@ export function generateReachabilityInsights(
     }
   }
 
-  // Generate conditional execution insights
-  const conditionalIssues = enhancedResults.filter(r => 
-    r.reachability?.requiredConditions && r.reachability.requiredConditions.length > 0
-  );
-  
-  if (conditionalIssues.length > 0) {
-    insights.push({
-      id: 'conditional-security-issues',
-      type: 'security',
-      severity: 'info',
-      title: 'Conditional Security Issues',
-      description: `${conditionalIssues.length} security issues are subject to execution conditions, reducing their immediate risk`,
-      file: '',
-      suggestion: 'Monitor condition changes that might affect the reachability of these security issues.'
-    });
-  }
-
-  // Generate mitigation insights
-  const mitigatedIssues = enhancedResults.filter(r => 
-    r.reachability?.mitigatingFactors && r.reachability.mitigatingFactors.length > 0
-  );
-  
-  if (mitigatedIssues.length > 0) {
-    insights.push({
-      id: 'mitigated-security-issues',
-      type: 'security',
-      severity: 'info',
-      title: 'Issues with Mitigating Factors',
-      description: `${mitigatedIssues.length} security issues have mitigating factors that reduce their effective risk`,
-      file: '',
-      suggestion: 'Continue to maintain these mitigating factors and ensure they remain effective over time.'
-    });
-  }
-
   return insights;
 }
